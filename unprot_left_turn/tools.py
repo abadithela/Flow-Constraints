@@ -56,3 +56,41 @@ def create_intersection_from_file(intersectionfile):
         crosswalk.update({i: (int(np.floor(num/2)), y)})
     # st()
     return map, crosswalk
+
+# Least fixpoint computation:
+# General comment: Write specifications as a closed system and then open it
+#
+def descendants(source, constrain, aut, future=True):
+    """Existential descendants of `source` in `constrain`.
+    @param future: if `True`, then apply an image operation
+        before starting the least fixpoint computation
+    """
+    if future:
+        q = ee_image(source, aut)
+    else:
+        q = source
+    qold = None
+    while q != qold:
+        post = ee_image(q, aut)
+        qold = q
+        q |= post
+        q &= constrain
+    # assert that it is a state predicate
+    return q
+
+def desc_operator():
+    while q != qold:
+       post = ee_image(q, aut)
+       qold = q
+       q |= post
+       q &= constrain
+
+def ee_image(source, aut):
+    """Existential image."""
+    u = aut.action[SYS]
+    qvars = aut.varlist['env'] + aut.varlist['sys']
+    u = aut.exist(qvars, u & source)
+    u = prm.unprime(u, aut)
+    return u
+
+    
