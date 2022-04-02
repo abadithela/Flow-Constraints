@@ -118,32 +118,34 @@ class AugmentedNetwork(MazeNetwork):
 
     def minimum_node_cut_with_protected_critical_path(self, H_crit):
         # create model
-        st()
+        # st()
         k = 2 # partition into two segments
         G = nx.Graph(self.gamegraph)
         G.remove_node(self.comp_wpt_i)
         m = gp.Model()
 
         # create variables
-
         x = m.addVars(G.nodes, k, vtype=GRB.BINARY)
         y = m.addVars(G.edges, vtype=GRB.BINARY)  # y[u,v] equals one when edge {u,v} is cut
         m.setObjective(gp.quicksum(y[u,v] for u,v in G.edges), GRB.MINIMIZE) # minimize the number of cut edges
         # add constraints
         # st()
+        # source and goal need to be in different partitions
         m.addConstr(x[self.source[0],self.source[1],0] == 1)
         m.addConstr(x[self.source[0],self.source[1],1] == 0)
         m.addConstr(x[self.goal[0],self.goal[1],1] == 1)
         m.addConstr(x[self.goal[0],self.goal[1],0] == 0)
+        # do not delete self loop edges
         m.addConstrs(y[u,v] == 0 for u,v in G.edges if u == v)
+        # other constraints
         m.addConstrs(gp.quicksum(x[i[0],i[1],j] for j in range(k)) == 1 for i in G.nodes) # each node is only part of one partition
         m.addConstrs(x[i[0],i[1],v] - x[j[0],j[1],v] <= y[i,j] for i,j in G.edges for v in range(k)) # cut the edge between partitions
-        m.addConstrs(y[u,v] == 0 for u,v in G.edges if u in H_crit.nodes and v in H_crit.nodes) # protected area
+        m.addConstrs(y[u,v] == 0 for u,v in G.edges if u in H_crit.nodes and v in H_crit.nodes) # do not cut in protected area
 
         m.update()
         # solve IP model
         m.optimize()
-        # st()
+        st()
 
         for item in x:
             if x[item].x > 0.5:
@@ -156,7 +158,7 @@ class AugmentedNetwork(MazeNetwork):
 
         self.print_maze()
         self.print_partition()
-        st()
+        # st()
 
     def print_partition(self):
         # st()
@@ -193,4 +195,4 @@ if __name__ == '__main__':
     augmented_maze.find_critical_path_combination()
     # maze.print_maze()
     # spec = maze.transition_specs()
-    st()
+    # st()
