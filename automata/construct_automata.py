@@ -15,6 +15,7 @@ from tulip.transys.automata import BuchiAutomaton
 from tulip.interfaces import ltl2ba as ltl2baint
 from tulip.transys.labeled_graphs import LabeledDiGraph
 from tulip.transys.automata import tuple2ba
+from tulip.transys.mathset import PowerSet
 from itertools import chain, combinations
 
 import pdb
@@ -208,14 +209,18 @@ def ltl2ba(formula):
     logger.info('Resulting automaton:\n\n{ba}\n'.format(ba=ba))
     return ba
 
-# Defining Powerset:
-def powerset(A):
-    length = len(A)
-    return {
-        frozenset({e for e, b in zip(A, f'{i:{length}b}') if b == '1'})
-        for i in range(2 ** length)
-    }
+def construct_BA(S, S0, Sa, props, trans):
+    ba = BuchiAutomaton(atomic_proposition_based=True)
+    ba.states.add_from(S)
+    ba.states.initial.add_from(S0)
+    ba.states.accepting.add_from(Sa)
+    ba.alphabet.math_set |= props
+    for ui,vi,di in trans:
+        ba.transitions.add(ui, vi, letter=set([di]))
+    return ba
 
+# Write product BA by hand // construct it automatically and map it to known states by hand
+# Construct BA for the entire test specification.
 #Original guard of the function in set variable fashion.
 def prog_BA_conversion(orig_guard):
     f = '[]<>(intermed)'
@@ -224,24 +229,27 @@ def prog_BA_conversion(orig_guard):
     S = list(g.nodes())
     S0 = [s for s in S if "init" in s]
     Sa = [s for s in S if "accept" in s]
-    props = set(['('+s+')' for s in symbols.keys()])
-    Sigma = [set(s) for s in powerset(props)]
+    props = ['('+s+')' for s in symbols.keys()]
+    props_orig = [orig_guard['('+s+')'] for s in symbols.keys()]
+    props.append(True)
+    props_orig.append(True)
+    Sigma = PowerSet(props)
     trans = []
     trans_orig = []
-    for u,v,d in g.edges(data=True): # Reading the guarded labels
-        trans.append((u,v,d['guard']))
-        trans_orig.append((u,v,orig_guard[d['guard']]))
-    tp = [S, S0, Sa,Sigma, trans]
-    tp_orig = [S, S0, Sa,Sigma, trans_orig]
-    return symbols, g, initial, accepting, tp, tp_orig
+    for ui,vi,di in g.edges(data=True): # Reading the guarded labels
+        if di['guard'] == '(1)':
+            di['guard'] = True
+        trans.append((ui,vi,di['guard']))
+        trans_orig.append((ui,vi,orig_guard[di['guard']]))
+    ba = construct_BA(S, S0, Sa, props, trans)
+    ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
+    pdb.set_trace()
+    return symbols, g, initial, accepting, ba, ba_orig
 
 # Define product automaton with Buchi automaton and transition system
 if __name__ == '__main__':
-    orig_guard = {'(intermed)': 'x=2', '(1)': True, '(0)':False}
-    symbols, g, initial, accepting, tp, tp_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress psi specs, not others
+    orig_guard = {'(intermed)': '(x=2)', True:True}
+    symbols, g, initial, accepting, ba, ba_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress psi specs, not others
     # Convert to Buchi automaton:
-    pdb.set_trace()
-    ba = tuple2ba(tp[0], tp[1], tp[2], tp[3], tp[4])
-    ba_orig = tuple2ba(tp_orig[0], tp_orig[1], tp_orig[2], tp_orig[3], tp_orig[4])
     pdb.set_trace()
     symbols, g, initial, accepting = construct_BA()
