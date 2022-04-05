@@ -14,6 +14,8 @@ from tulip.spec import GRSpec, LTL
 from tulip.transys.automata import BuchiAutomaton
 from tulip.interfaces import ltl2ba as ltl2baint
 from tulip.transys.labeled_graphs import LabeledDiGraph
+from tulip.transys.automata import tuple2ba
+from itertools import chain, combinations
 
 import pdb
 # build parser once only
@@ -157,22 +159,23 @@ def sys_propf_construct():
     sys_init = set()
     sys_prog = set()
     sys_safe = set()
-    M = 10
-    N = 10
+    M = 3
+    N = 3
     sys_init |= {'(x=1 && y=1)'}
     sys_vars['x'] = (1,M)
     sys_vars['y'] = (1,N)
     safe_specs, Gf = generate_gridworld_transition_specs(M,N)
-    # sys_safe |= safe_specs
+    sys_safe |= safe_specs
     sys_prog |= {'(x = 10 && y=10)'}
     return sys_init, sys_vars, sys_safe, sys_prog, Gf
 
 # Make it go through
 def test_propf_construct():
-    test_vars = {}
-    test_init = set()
-    test_safe = set()
-    test_prog = set()
+    test_vars = {'park', 'intermed'}
+    test_init = {'intermed': False}
+    test_safe = {'intermed <-> (x=2 && y=2)'} # Intermediate node
+    test_prog = {'!park'}
+    test_prog |= {'intermed'}
     # test_prog |= {'[]<>(x = 3 && y=3)'}
     return test_init, test_vars, test_safe, test_prog
 
@@ -180,18 +183,12 @@ def test_propf_construct():
 def construct_BA():
     sys_init, sys_vars, sys_safe, sys_prog, Gf = sys_propf_construct()
     test_init, test_vars, test_safe, test_prog = test_propf_construct()
-    test_spec = GRSpec(sys_vars=sys_vars, sys_init=set(), sys_safety=sys_safe, sys_prog = sys_prog)
+    sys_spec = GRSpec(sys_vars=sys_vars, sys_init=set(), sys_safety=sys_safe, sys_prog = sys_prog)
+    test_spec = GRSpec(env_vars=test_vars, env_init=set(), env_safety=test_safe, env_prog = test_prog)
 
-    # test_spec = GRSpec(env_vars=sys_vars, sys_vars=test_vars,
-    #              env_init=sys_init, sys_init=test_init,
-    #              env_safety=sys_safe, sys_safety=test_safe,
-    #              env_prog=sys_prog, sys_prog=test_prog,qinit=r'\E \A')
-    f = '[]<> (a)'
     f = test_spec.to_canon()
-    pdb.set_trace()
     test_spec_BA = ltl2baint.call_ltl2ba(f)
     symbols, g, initial, accepting = parser.parse(test_spec_BA)
-    pdb.set_trace()
     return symbols, g, initial, accepting
 
 def ltl2ba(formula):
@@ -211,13 +208,40 @@ def ltl2ba(formula):
     logger.info('Resulting automaton:\n\n{ba}\n'.format(ba=ba))
     return ba
 
-def test_BA_conversion():
-    f = '[]<>(a=1)'
+# Defining Powerset:
+def powerset(A):
+    length = len(A)
+    return {
+        frozenset({e for e, b in zip(A, f'{i:{length}b}') if b == '1'})
+        for i in range(2 ** length)
+    }
+
+#Original guard of the function in set variable fashion.
+def prog_BA_conversion(orig_guard):
+    f = '[]<>(intermed)'
     test_spec_BA = ltl2baint.call_ltl2ba(f)
     symbols, g, initial, accepting = parser.parse(test_spec_BA)
-    return symbols, g, initial, accepting
+    S = list(g.nodes())
+    S0 = [s for s in S if "init" in s]
+    Sa = [s for s in S if "accept" in s]
+    props = set(['('+s+')' for s in symbols.keys()])
+    Sigma = [set(s) for s in powerset(props)]
+    trans = []
+    trans_orig = []
+    for u,v,d in g.edges(data=True): # Reading the guarded labels
+        trans.append((u,v,d['guard']))
+        trans_orig.append((u,v,orig_guard[d['guard']]))
+    tp = [S, S0, Sa,Sigma, trans]
+    tp_orig = [S, S0, Sa,Sigma, trans_orig]
+    return symbols, g, initial, accepting, tp, tp_orig
 
+# Define product automaton with Buchi automaton and transition system
 if __name__ == '__main__':
-    symbols, g, initial, accepting = test_BA_conversion()
+    orig_guard = {'(intermed)': 'x=2', '(1)': True, '(0)':False}
+    symbols, g, initial, accepting, tp, tp_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress psi specs, not others
+    # Convert to Buchi automaton:
+    pdb.set_trace()
+    ba = tuple2ba(tp[0], tp[1], tp[2], tp[3], tp[4])
+    ba_orig = tuple2ba(tp_orig[0], tp_orig[1], tp_orig[2], tp_orig[3], tp_orig[4])
     pdb.set_trace()
     symbols, g, initial, accepting = construct_BA()
