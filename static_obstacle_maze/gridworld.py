@@ -4,6 +4,8 @@ class GridWorld:
     def __init__(self, maze, agent):
         self.maze = maze
         self.agent = agent
+        self.timestep = 0
+        self.trace = []
 
     def print_gridworld(self):
         key_y_old = []
