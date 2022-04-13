@@ -17,7 +17,7 @@ from tulip.transys.automata import BuchiAutomaton
 from tulip.interfaces import ltl2ba as ltl2baint
 from tulip.transys.labeled_graphs import LabeledDiGraph
 from tulip.transys.automata import tuple2ba
-from tulip.transys.mathset import PowerSet, MathSet
+from tulip.transys.mathset import PowerSet, MathSet, powerset
 from itertools import chain, combinations
 from tulip.transys import products
 import pdb
@@ -227,8 +227,8 @@ def construct_BA(S, S0, Sa, props, trans):
             elif isinstance(di, list):
                 ba.transitions.add(ui, vi, letter=set(di))
                 print(set(di))
-            elif isinstance(di, set):
-                ba.add_edge(ui, vi, letter=di)
+            elif isinstance(di, tuple):
+                ba.add_edge(ui, vi, letter=set([di]))
                 print(set(di))
             elif di == True:
                 ba.transitions.add(ui, vi, letter=set([di]))
@@ -292,7 +292,7 @@ def get_ba_ts(mazefile):
     ts = convert_grid_to_FTS(G, states, next_state_dict, (0,maze.len_y-1), maze.len_x, maze.len_y)
     # pdb.set_trace()
     spec = maze.transition_specs()
-    orig_guard = {'(intermed)': MathSet(['x=2', 'y=2']), True:True}
+    orig_guard = {'(intermed)': (('x=2', 'y=2'),), True:True}
     symbols, g, initial, accepting, ba, ba_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress
     # pdb.set_trace()
     return ts, ba, ba_orig
@@ -319,7 +319,7 @@ def prog_BA_conversion(orig_guard):
             di['guard'] = True
         trans.append((ui,vi,di['guard']))
         trans_orig.append((ui,vi,orig_guard[di['guard']]))
-    # pdb.set_trace()
+    #pdb.set_trace()
     ba = construct_BA(S, S0, Sa, props, trans)
     print("BA successfully constructed!")
     ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
