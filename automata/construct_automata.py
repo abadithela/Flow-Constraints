@@ -228,7 +228,7 @@ def construct_BA(S, S0, Sa, props, trans):
                 ba.transitions.add(ui, vi, letter=set(di))
                 print(set(di))
             elif isinstance(di, tuple):
-                ba.add_edge(ui, vi, letter=set([di]))
+                ba.add_edge(ui, vi, letter=(di,))
                 print(set(di))
             elif di == True:
                 ba.transitions.add(ui, vi, letter=set([di]))
@@ -245,8 +245,10 @@ def product_automaton(ts, ba):
     preim_acc_states = prod[1] # Set of accepting states of the Buchi automaton projected onto TS * BA.
     prodts = prod[0]
     prod_ba = products.ba_ts_sync_prod(ba, ts)
-    pdb.set_trace()
-    return prodts, preim_acc_states
+    ts_acc_states = set()
+    for prod_st in preim_acc_states:
+        ts_acc_states |= {prod_st[0]}
+    return prodts, preim_acc_states, ts_acc_states
 
 # Convert to FTS:
 def convert_grid_to_FTS(G, states, next_state_dict, init, lenx, leny):
@@ -267,7 +269,9 @@ def convert_grid_to_FTS(G, states, next_state_dict, init, lenx, leny):
         successor_idx = [states.index(succ) for succ in successors]
         tsi = ts_states[i]
         ts_succ = [ts_states[k] for k in successor_idx]
-        ts.states[tsi]['ap'] = {"x="+str(si[1]), "y="+str(si[0])}
+        if si[1] == 2 and si[0] == 2:
+            ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
+            ts.states[tsi]['ap'] = (ap_tsi,)
         for k, ts_succ_k in enumerate(ts_succ):
             succ = successors[k]
             if succ[0] == si[0] and succ[1] == si[1]+1:
@@ -292,7 +296,7 @@ def get_ba_ts(mazefile):
     ts = convert_grid_to_FTS(G, states, next_state_dict, (0,maze.len_y-1), maze.len_x, maze.len_y)
     # pdb.set_trace()
     spec = maze.transition_specs()
-    orig_guard = {'(intermed)': (('x=2', 'y=2'),), True:True}
+    orig_guard = {'(intermed)': ('x=2', 'y=2'), True:True}
     symbols, g, initial, accepting, ba, ba_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress
     # pdb.set_trace()
     return ts, ba, ba_orig
@@ -323,6 +327,7 @@ def prog_BA_conversion(orig_guard):
     ba = construct_BA(S, S0, Sa, props, trans)
     print("BA successfully constructed!")
     ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
+    print("BA original successfully constructed!")
     # symbols, g, initial, accepting = parser.parse(ba)
     print(ba.states.accepting) # Insert checks
     print(ba_orig.states.accepting)
@@ -336,8 +341,8 @@ if __name__ == '__main__':
     # Convert to Buchi automaton:
     mazefile = "../static_obstacle_maze/maze2.txt"
     ts, ba, ba_orig = get_ba_ts(mazefile)
-    pdb.set_trace()
-    product_aut, preim_acc_states = product_automaton(ts, ba_orig)
+    product_aut, preim_acc_states, ts_acc_states = product_automaton(ts, ba_orig)
+    print("Constructed Product automaton")
     pdb.set_trace()
     # Product ts does not have s1_accept in it.
     # symbols, g, initial, accepting = construct_BA()
