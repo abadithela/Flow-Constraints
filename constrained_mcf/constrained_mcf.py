@@ -27,7 +27,7 @@ def load_graph(m, n):
             nodes.append("c"+str(cell))
 
 def source_outgoing_edge_indices(k=1):
-
+    pass
 
 def construct_objective(E):
     nE = len(E)
@@ -52,10 +52,10 @@ def positivity_constraints(E):
 # Function for MiLP to accommodate cycles:
 # Inputs Matrices: c, A, d
 # Outputs: edges to remove: newC, optimal flow vector: fopt, timed_out or infeasibility optimization variables
-def milp_cycles(c, A, b, G, h):
+def lp(c, A, b, G, h):
     numx = len(c)
     epsilon = 0.5 # Factor that keeps b variables to 1
-    newC = []
+    cuts = []
     fopt = 0
     timed_out = False
     feas = False
@@ -71,7 +71,7 @@ def milp_cycles(c, A, b, G, h):
         # Set objective: c.T*b; minimizing cuts to augmenting paths pj to pj+1
         m.setObjective(c @ x, GRB.MAXIMIZE)
 
-
+        # Add constraints here
 
         ones_b = np.ones((nc,))
         ones_f = np.ones((nf,))
@@ -104,11 +104,11 @@ def milp_cycles(c, A, b, G, h):
                     fidx += 1
 
             # get_constraints
-
+            # Convert back to edges/vertices in the graph and return it in cuts
     except gp.GurobiError as e:
         print('Error code ' + str(e.errno) + ': ' + str(e))
 
     except AttributeError:
         print('Encountered an attribute error')
 
-    return newC, fopt, timed_out, feas
+    return cuts, fopt, timed_out, feas

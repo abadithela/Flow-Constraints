@@ -4,6 +4,8 @@ import tulip
 import numpy as np
 import networkx as nx
 import logging
+import sys
+sys.path.append('..')
 import warnings
 from tulip.transys import transys, automata, products, algorithms
 from tulip import synth, spec
@@ -15,10 +17,11 @@ from tulip.transys.automata import BuchiAutomaton
 from tulip.interfaces import ltl2ba as ltl2baint
 from tulip.transys.labeled_graphs import LabeledDiGraph
 from tulip.transys.automata import tuple2ba
-from tulip.transys.mathset import PowerSet
+from tulip.transys.mathset import PowerSet, MathSet
 from itertools import chain, combinations
-
+from tulip.transys import products
 import pdb
+from static_obstacle_maze.network import MazeNetwork
 # build parser once only
 parser = ltl2baint.Parser()
 # gridworld plots:
@@ -181,7 +184,7 @@ def test_propf_construct():
     return test_init, test_vars, test_safe, test_prog
 
 # Def LTL2BA:
-def construct_BA():
+def GRspec_BA():
     sys_init, sys_vars, sys_safe, sys_prog, Gf = sys_propf_construct()
     test_init, test_vars, test_safe, test_prog = test_propf_construct()
     sys_spec = GRSpec(sys_vars=sys_vars, sys_init=set(), sys_safety=sys_safe, sys_prog = sys_prog)
@@ -210,14 +213,89 @@ def ltl2ba(formula):
     return ba
 
 def construct_BA(S, S0, Sa, props, trans):
-    ba = BuchiAutomaton(atomic_proposition_based=True)
+    ba = BuchiAutomaton(atomic_proposition_based=True) # BA must be AP based
     ba.states.add_from(S)
     ba.states.initial.add_from(S0)
     ba.states.accepting.add_from(Sa)
     ba.alphabet.math_set |= props
+    # pdb.set_trace()
     for ui,vi,di in trans:
-        ba.transitions.add(ui, vi, letter=set([di]))
+        try:
+            if isinstance(di, str):
+                ba.transitions.add(ui, vi, letter=set([di]))
+                print(set([di]))
+            elif isinstance(di, list):
+                ba.transitions.add(ui, vi, letter=set(di))
+                print(set(di))
+            elif isinstance(di, set):
+                ba.add_edge(ui, vi, letter=di)
+                print(set(di))
+            elif di == True:
+                ba.transitions.add(ui, vi, letter=set([di]))
+                print(set([di]))
+            else:
+                ba.transitions.add(ui, vi, letter=di)
+        except:
+            pdb.set_trace()
     return ba
+
+# Construct product automaton:
+def product_automaton(ts, ba):
+    prod = products.ts_ba_sync_prod(ts, ba)
+    preim_acc_states = prod[1] # Set of accepting states of the Buchi automaton projected onto TS * BA.
+    prodts = prod[0]
+    prod_ba = products.ba_ts_sync_prod(ba, ts)
+    pdb.set_trace()
+    return prodts, preim_acc_states
+
+# Convert to FTS:
+def convert_grid_to_FTS(G, states, next_state_dict, init, lenx, leny):
+    ts = transys.FiniteTransitionSystem()
+    ts_states = ["s"+str(k) for k in range(len(states))]
+    init_idx = [k for k in range(len(states)) if states[k]==init]
+    state_map = {ts_states[i]: states[i] for i in range(len(states))}
+    ts.states.add_from(ts_states) # Add states
+    ts.states.initial.add(ts_states[init_idx[0]])
+    ts.actions = ['n', 'e', 's', 'w', 'stay']
+    ts.atomic_propositions = []
+    for xi in range(lenx):
+        ts.atomic_propositions.append("x="+str(xi))
+    for yi in range(leny):
+        ts.atomic_propositions.append("y="+str(yi))
+    for i, si in enumerate(states):
+        successors = next_state_dict[si]
+        successor_idx = [states.index(succ) for succ in successors]
+        tsi = ts_states[i]
+        ts_succ = [ts_states[k] for k in successor_idx]
+        ts.states[tsi]['ap'] = {"x="+str(si[1]), "y="+str(si[0])}
+        for k, ts_succ_k in enumerate(ts_succ):
+            succ = successors[k]
+            if succ[0] == si[0] and succ[1] == si[1]+1:
+                act = 'e'
+            elif succ[0] == si[0] and succ[1] == si[1]-1:
+                act = 'w'
+            elif succ[0] == si[0]+1 and succ[1] == si[1]:
+                act = 's'
+            elif succ[0] == si[0]-1 and succ[1] == si[1]:
+                act = 'n'
+            elif succ[0] == si[0] and succ[1] == si[1]:
+                act = 'stay'
+            ts.transitions.add(tsi, ts_succ_k)
+            # pdb.set_trace()
+    return ts
+
+# Get transition system and Buchi automaton:
+def get_ba_ts(mazefile):
+    maze = MazeNetwork(mazefile) # Creates the maze
+    G, states, next_state_dict = maze.get_gamegraph() # Get finite transition system format.
+    # pdb.set_trace()
+    ts = convert_grid_to_FTS(G, states, next_state_dict, (0,maze.len_y-1), maze.len_x, maze.len_y)
+    # pdb.set_trace()
+    spec = maze.transition_specs()
+    orig_guard = {'(intermed)': MathSet(['x=2', 'y=2']), True:True}
+    symbols, g, initial, accepting, ba, ba_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress
+    # pdb.set_trace()
+    return ts, ba, ba_orig
 
 # Write product BA by hand // construct it automatically and map it to known states by hand
 # Construct BA for the entire test specification.
@@ -241,15 +319,25 @@ def prog_BA_conversion(orig_guard):
             di['guard'] = True
         trans.append((ui,vi,di['guard']))
         trans_orig.append((ui,vi,orig_guard[di['guard']]))
+    # pdb.set_trace()
     ba = construct_BA(S, S0, Sa, props, trans)
+    print("BA successfully constructed!")
     ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
-    pdb.set_trace()
+    # symbols, g, initial, accepting = parser.parse(ba)
+    print(ba.states.accepting) # Insert checks
+    print(ba_orig.states.accepting)
+    assert ba.states.accepting == ba_orig.states.accepting # Verify that these are the same
+    # pdb.set_trace()
     return symbols, g, initial, accepting, ba, ba_orig
 
 # Define product automaton with Buchi automaton and transition system
 if __name__ == '__main__':
-    orig_guard = {'(intermed)': '(x=2)', True:True}
-    symbols, g, initial, accepting, ba, ba_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress psi specs, not others
+    # Constructing the product automaton with the game graph
     # Convert to Buchi automaton:
+    mazefile = "../static_obstacle_maze/maze2.txt"
+    ts, ba, ba_orig = get_ba_ts(mazefile)
     pdb.set_trace()
-    symbols, g, initial, accepting = construct_BA()
+    product_aut, preim_acc_states = product_automaton(ts, ba_orig)
+    pdb.set_trace()
+    # Product ts does not have s1_accept in it.
+    # symbols, g, initial, accepting = construct_BA()
