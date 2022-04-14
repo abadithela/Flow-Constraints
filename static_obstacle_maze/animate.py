@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
 import glob
-from PIL import Image
+from PIL import Image, ImageOps
 import _pickle as pickle
 from matplotlib.ticker import (AutoMinorLocator, MultipleLocator,
         FormatStrFormatter, AutoMinorLocator)
@@ -16,34 +16,38 @@ import imageio
 TILESIZE = 50
 
 main_dir = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
-pacman_fig = main_dir + '/CompositionalTesting/imglib/pacman_fig.png'
+pacman_fig = main_dir + '/imglib/pacman_fig.png'
 
-def draw_map(map, merge = False):
-    # st()
-    size = max(map.keys())
+def draw_maze(maze, merge = False):
+    size = max(maze.keys())
+    z_min = 0
+    z_max = (size[0]+1) * TILESIZE
     x_min = 0
-    x_max = (size[0]+1) * TILESIZE
-    y_min = 0
-    y_max = (size[1]+1) * TILESIZE
-    #x_min, x_max, y_min, y_max = get_map_corners(map)
-    ax.axis('equal')
+    x_max = (size[1]+1) * TILESIZE
+
     ax.set_xlim(x_min, x_max)
-    ax.set_ylim(y_min, y_max)
+    ax.set_ylim(z_min, z_max)
     ax.xaxis.set_visible(False)
     ax.yaxis.set_visible(False)
+    # ax.crop((x_min, z_min, x_max, z_max))
 
     # fill in the road regions
     road_tiles = []
-    width_tiles = np.arange(0,size[0]+1)*TILESIZE
-    lanes_tiles = np.arange(0,size[1]+1)*TILESIZE
-
+    x_tiles = np.arange(0,size[0]+2)*TILESIZE
+    z_tiles = np.arange(0,size[1]+2)*TILESIZE
     for i in np.arange(0,size[0]+1):
         for k in np.arange(0,size[1]+1):
-            if map[(i,k)] != '*':
-                tile = patches.Rectangle((width_tiles[k],lanes_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='k', alpha=0.4)
+            print('{0},{1}'.format(i,k))
+            if maze[(i,k)] != '*' and maze[(i,k)] != 'o':
+                tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='k', alpha=0.4)
+                road_tiles.append(tile)
+            elif maze[(i,k)] == '*':
+                tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='k', alpha=0.8)
+                road_tiles.append(tile)
+            elif maze[(i,k)] == 'o':
+                tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='tomato', alpha=0.8)
                 road_tiles.append(tile)
     ax.add_collection(PatchCollection(road_tiles, match_original=True))
-
     plt.gca().invert_yaxis()
 
 def draw_timestamp(t, merge = False):
@@ -55,14 +59,16 @@ def draw_timestamp(t, merge = False):
              bbox={"boxstyle" : "circle", "color":"white", "ec":"black"})
 
 def draw_pacman(pac_data, merge = False):
-    y_tile, x_tile = car_data
+    y_tile = pac_data[0][1]
+    x_tile = pac_data[0][2]
     # theta_d = ORIENTATIONS[orientation]
     x = (x_tile) * TILESIZE
-    y = (y_tile) * TILESIZE
-    car_fig = Image.open(pacman_fig)
+    z = (y_tile) * TILESIZE
+    pac_fig = Image.open(pacman_fig)
+    pac_fig = ImageOps.flip(pac_fig)
     # car_fig = car_fig.rotate(theta_d, expand=False)
     offset = 0.1
-    ax.imshow(car_fig, zorder=1, interpolation='bilinear', extent=[x+2, x+TILESIZE-2, y+2, y+TILESIZE-2])
+    ax.imshow(pac_fig, zorder=1, interpolation='bilinear', extent=[z+5, z+TILESIZE-5, x+5, x+TILESIZE-5])
 
 
 def animate_images(output_dir):
@@ -83,14 +89,15 @@ def animate_images(output_dir):
 def traces_to_animation(filename, output_dir):
     # extract out traces from pickle file
     with open(filename, 'rb') as pckl_file:
-        st()
+        # st()
         traces = pickle.load(pckl_file)
     ##
+    # st()
     t_start = 0
     t_end = len(traces)
     # t_start = traces[0].timestamp
     # t_end = traces[-1].timestamp
-    map = traces[0].map
+    maze = traces[0].maze
     #import pdb; pdb.set_trace()
     global ax
     fig, ax = plt.subplots()
@@ -99,8 +106,8 @@ def traces_to_animation(filename, output_dir):
     # plot map once
     for t in t_array:
         plt.gca().cla()
-        draw_map(map)
-        pac_data = traces[t].pac
+        draw_maze(maze.map)
+        pac_data = traces[t].pacman
         draw_pacman(pac_data)
         plot_name = str(t).zfill(5)
         img_name = output_dir+'/plot_'+plot_name+'.png'
@@ -111,8 +118,9 @@ def make_animation():
     output_dir = os.getcwd()+'/animations/gifs/'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    traces_file = os.getcwd()+'/static_obstacle_maze/saved_traces/sim_trace.p'
+    traces_file = os.getcwd()+'/saved_traces/sim_trace.p'
     traces_to_animation(traces_file, output_dir)
 
 if __name__ == '__main__':
     make_animation()
+    st()

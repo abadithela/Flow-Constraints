@@ -11,9 +11,9 @@ from helper import *
 
 
 def new_World():
-    mazefile = os.getcwd()+'/maze.txt'
+    mazefile = os.getcwd()+'/maze_new.txt'
     maze = MazeNetwork(mazefile)
-    pacman = Agent('pacman',5,0,(0,9))
+    pacman = Agent('pacman',5,0,(0,9), maze)
     gridworld = GridWorld(maze, pacman)
     return gridworld, maze, pacman
 
@@ -22,7 +22,7 @@ def run_sim(max_timestep, filepath):
     trace=[]
     gridworld, maze, pacman = new_World()
     gridworld.print_gridworld()
-    st()
+    # st()
     trace = save_scene(gridworld,trace)
     for t in range(1,max_timestep):
         print('Timestep {}'.format(t))

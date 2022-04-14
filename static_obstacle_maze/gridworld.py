@@ -29,13 +29,14 @@ class GridWorld:
         printline = self.maze.map[key]
 
     def agent_take_step(self):
-        if (self.agent.y,self.agent.x + 1) in self.maze.map:
-            if self.maze.map[(self.agent.y,self.agent.x + 1)] != '*':
-                self.agent.step_e()
-            else:
-                self.agent.step_n()
-        else:
-            self.agent.step_n()
+        self.agent.agent_move()
+        # if (self.agent.y,self.agent.x + 1) in self.maze.map:
+        #     if self.maze.map[(self.agent.y,self.agent.x + 1)] != '*' and self.maze.map[(self.agent.y,self.agent.x + 1)] != 'o':
+        #         self.agent.step_e()
+        #     else:
+        #         self.agent.step_n()
+        # else:
+        #     self.agent.step_n()
 
     def is_terminal(self):
         terminal = False
