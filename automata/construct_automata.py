@@ -286,20 +286,20 @@ def convert_grid_to_FTS(G, states, next_state_dict, init, lenx, leny):
                 act = 'stay'
             ts.transitions.add(tsi, ts_succ_k)
             # pdb.set_trace()
-    return ts
+    return ts, state_map
 
 # Get transition system and Buchi automaton:
 def get_ba_ts(mazefile):
     maze = MazeNetwork(mazefile) # Creates the maze
     G, states, next_state_dict = maze.get_gamegraph() # Get finite transition system format.
     # pdb.set_trace()
-    ts = convert_grid_to_FTS(G, states, next_state_dict, (0,maze.len_y-1), maze.len_x, maze.len_y)
+    ts, state_map = convert_grid_to_FTS(G, states, next_state_dict, (0,maze.len_y-1), maze.len_x, maze.len_y)
     # pdb.set_trace()
     spec = maze.transition_specs()
     orig_guard = {'(intermed)': ('x=2', 'y=2'), True:True}
     symbols, g, initial, accepting, ba, ba_orig = prog_BA_conversion(orig_guard) # BA conversion only for safety and progress
     # pdb.set_trace()
-    return ts, ba, ba_orig
+    return ts, ba, ba_orig, state_map
 
 # Write product BA by hand // construct it automatically and map it to known states by hand
 # Construct BA for the entire test specification.
@@ -340,7 +340,7 @@ if __name__ == '__main__':
     # Constructing the product automaton with the game graph
     # Convert to Buchi automaton:
     mazefile = "../static_obstacle_maze/maze2.txt"
-    ts, ba, ba_orig = get_ba_ts(mazefile)
+    ts, ba, ba_orig, state_map = get_ba_ts(mazefile)
     product_aut, preim_acc_states, ts_acc_states = product_automaton(ts, ba_orig)
     print("Constructed Product automaton")
     pdb.set_trace()
