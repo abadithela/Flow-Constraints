@@ -2,11 +2,14 @@ import networkx as nx
 import numpy as np
 import gurobipy as gp
 from gurobipy import GRB
+import sys
+from lp import *
+import scipy.sparse as sp
 
 # Construct matrices:
 # x = [--fp--, F, --de--]
 
-G, source_dict, sink_dict = load_graph()
+G, nodes, source_dict, sink_dict = load_graph()
 Edges = G.edges()
 Verts = G.nodes()
 nV = len(Verts)
@@ -20,18 +23,35 @@ def load_graph(m, n):
     G = nx.DiGraph()
     nodes = []
     edges = []
+    source_dict = {'s1': "c91", 's2': "c55", 's3': "c91"}
+    sink_dict = {'t1': "c55", 't2': "c10", 't3': "c10"}
     for row in range(1,m+1):
         for col in range(1,n+1):
             cell = (row-1)*n + col
             succ_cells = [cell-n, cell+n, cell-1, cell+1]
+            if row == 1:
+                succ_cells.remove(cell-n)
+            if col == 1:
+                succ_cells.remove(cell-1)
+            if row == m:
+                succ_cells.remove(cell+n)
+            if col == n:
+                succ_cells.remove(cell+1)
             nodes.append("c"+str(cell))
+            for scell in succ_cells:
+                edges.append(("c"+str(cell), "c"+str(scell)))
+    G.add_edges_from(edges) # Add edges
+    return G, nodes, source_dict, sink_dict
 
 def source_outgoing_edge_indices(k=1):
     pass
 
 def construct_objective(E):
+    '''
+    Constructs objective function as F
+    '''
     nE = len(E)
-    c = np.vstack((np.zeros((3*nE,1)), np.array([[1]]), -1*np.ones((nE,1)))
+    c = np.vstack((np.zeros((3*nE,1)), np.array([[1]]), 0*np.ones((nE,1))))
     return c
 
 def construct_min_constraints(E):
@@ -41,74 +61,79 @@ def construct_min_constraints(E):
     v1_indices = source_outgoing_edge_indices(k=1)
     return Fmin, bmin
 
-def positivity_constraints(E):
+def positivity_constraints(var, nE):
     numx = len(E)*3 + 1 + len(E)
     Fmin = np.zeros((2, numx))
     bmin = np.zeros((2,1))
     v1_indices = source_outgoing_edge_indices(k=1)
     return Fmin, bmin
 
-# ================================== Functions to handle cycle constraints ========================================== #
-# Function for MiLP to accommodate cycles:
-# Inputs Matrices: c, A, d
-# Outputs: edges to remove: newC, optimal flow vector: fopt, timed_out or infeasibility optimization variables
-def lp(c, A, b, G, h):
-    numx = len(c)
-    epsilon = 0.5 # Factor that keeps b variables to 1
-    cuts = []
-    fopt = 0
-    timed_out = False
-    feas = False
-    try:
-        # Create a new model
-        m = gp.Model("ConsMCF_LP")
-        m.setParam('OutputFlag', 0)  # Also dual_subproblem.params.outputflag = 0
-        m.setParam(GRB.Param.TimeLimit, 300.0) # Setting time limit: 5 min
-        # Create variables:
-        x = m.addMVar(numx, vtype=GRB.CONTINUOUS, name="x")
-        z = m.addMVar(nV, vtype=GRB.CONTINUOUS, name="z")
-        m.params.threads = 4
-        # Set objective: c.T*b; minimizing cuts to augmenting paths pj to pj+1
-        m.setObjective(c @ x, GRB.MAXIMIZE)
+def add_positivity_constr(m, variables):
+    for var in variables:
+        lv = len(var)
+        m.addConstr(var >= np.zeros((lv,1)))
+    return m
 
-        # Add constraints here
+def add_capacity_constr(m, edge_vars):
+    for var in edge_vars:
+        lv = len(var)
+        m.addConstr(var <= np.ones((lv,1)))
+    return m
 
-        ones_b = np.ones((nc,))
-        ones_f = np.ones((nf,))
-        m.addConstr(np.diag(D_f) @ f + A_f @ b <= A_f @ ones_b, name="c3")
-        m.addConstr(A_f @ ones_b  + ones_f <= f + A_f @ b + D_f @ ones_f, name="c4")
+def add_cut_constr(m, variables, nE):
+    f1_e, f2_e, f3_e, F, d_e = variables
+    m.addConstr(f1_e + d_e <= np.ones((nE,1)))
+    m.addConstr(f2_e + d_e <= np.ones((nE,1)))
+    m.addConstr(f3_e + d_e <= np.ones((nE,1)))
+    m.addConstr(d_e <= np.ones((nE,1))) # Max value of d_e
+    return m
 
-        # Optimize model
-        m.optimize()
-        if(m.status==GRB.INFEASIBLE):
-            feas = True
-        if(m.status == GRB.TIME_LIMIT):
-            timed_out = True
+def add_cons_constr(m, edge_vars, source_dict, sink_dict):
+    for var in edge_vars:
+        m.addConstr(f1_e + d_e <= np.ones((nE,1)))
+        m.addConstr(f2_e + d_e <= np.ones((nE,1)))
+        m.addConstr(f3_e + d_e <= np.ones((nE,1)))
+        m.addConstr(d_e <= np.ones((nE,1))) # Max value of d_e
+    return m
 
-        if feas!=True and timed_out!=True:
-            xopt=np.zeros((ne,1))
-            bopt = np.zeros((nc,1))
-            fopt = np.zeros((nf,1))
-            xidx = 0
-            bidx = 0
-            fidx = 0
-            for v in m.getVars():
-                if(xidx < ne and bidx < nc):
-                    xopt[xidx] = v.x
-                    xidx+=1
-                elif(xidx==ne and bidx < nc):
-                    bopt[bidx] = v.x
-                    bidx+=1
-                else:
-                    fopt[fidx] = v.x
-                    fidx += 1
+# Function to add variables:
+def add_vars(model, nE):
+    '''
+    Creates and returns the variables for multi-commodity flow problem
+    '''
+    f1_e = model.addMVar(shape=nE, vtype=GRB.CONTINUOUS, name="f1_e")
+    f2_e = model.addMVar(shape=nE, vtype=GRB.CONTINUOUS, name="f2_e")
+    f3_e = model.addMVar(shape=nE, vtype=GRB.CONTINUOUS, name="f3_e")
+    F = model.addVar(vtype=GRB.CONTINUOUS, name="F")
+    d_e = model.addMVar(shape=nE, vtype=GRB.CONTINUOUS, name="d_e")
+    variables = [f1_e, f2_e, f3_e, F, d_e]
+    return model, variables
 
-            # get_constraints
-            # Convert back to edges/vertices in the graph and return it in cuts
-    except gp.GurobiError as e:
-        print('Error code ' + str(e.errno) + ': ' + str(e))
+# Function to add constraints:
+def add_constraints(model, variables, nE):
+    f1_e, f2_e, f3_e, F, d_e = variables
+    model = add_positivity_constr(model, variables)
+    model = add_capacity_constr(model, [f1_e, f2_e, f3_e])
+    model = add_cut_constr(model, variables, nE)
+    return model
 
-    except AttributeError:
-        print('Encountered an attribute error')
+def save_mcf_lp(filename, G):
+    '''
+    Saves the Multi-Commodity Flow LP in an LP model file.
+    '''
+    V = G.nodes()
+    E = G.edges()
+    nE = len(E) # no. of edges
+    nV = len(V) # no. of vertices
 
-    return cuts, fopt, timed_out, feas
+    m = gp.Model()
+    m, variables = add_vars(m, nE)
+    m = add_constraints(m, variables)
+    lp.save_model(m, filename)
+
+def compute_sol(filename):
+    '''
+    Solves a linear program model saved in filename, and returns optimal output
+    '''
+    sol = lp.solve_lp(filename)
+    return sol
