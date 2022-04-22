@@ -5,6 +5,8 @@ from gurobipy import GRB
 import sys
 from lp import *
 import scipy.sparse as sp
+sys.path.append('..')
+from static_obstacle_maze.network import MazeNetwork
 
 # Construct matrices:
 # x = [--fp--, F, --de--]
