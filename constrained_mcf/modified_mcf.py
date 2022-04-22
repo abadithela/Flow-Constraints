@@ -92,7 +92,7 @@ class MCF():
             self.m.addConstr(de <= 1) # Max value of d_e
 
     # Add constraints:
-    def add_cons_constr(self, edge_vars):
+    def add_cons_constr(self):
         '''
         for v in V:
             ev_in <-- incoming edges to v
@@ -136,19 +136,38 @@ class MCF():
     # Function to add minimizing constraints:
     def add_min_constr(self):
         f1_e, f2_e, f3_e, F, d_e = self.variables
-        min_constr1 = (F <= gp.quicksum(f1_e[i,j] for i,j in G.edges if i == self.source_dict['s1']))
-        min_constr2 = (F <= gp.quicksum(f2_e[i,j] for i,j in G.edges if i == self.source_dict['s2']))
+        min_constr1 = (F <= gp.quicksum(f1_e[i,j] for i,j in self.graph.edges if i == self.source_dict['s1']))
+        min_constr2 = (F <= gp.quicksum(f2_e[i,j] for i,j in self.graph.edges if i == self.source_dict['s2']))
         self.m.addConstr(min_constr1)
         self.m.addConstr(min_constr2)
 
     # Function to add constraints:
     def add_constraints(self):
         f1_e, f2_e, f3_e, F, d_e = self.variables
-        self.add_positivity_constr()
-        self.add_capacity_constr([f1_e, f2_e, f3_e])
-        self.add_cut_constr() # Cut constraints: if cut, no flow
-        self.add_cons_constr() # Conservation at each node
         self.add_min_constr() # F <= sum(f1_e) for e from s1 and F<= sum(f2_e) for e from s2
+        try:
+            self.add_positivity_constr()
+            self.add_capacity_constr([f1_e, f2_e, f3_e])
+
+            print(" == Added positivity, min, and capacity constraints! == ")
+        except:
+            print(" == Error in adding positivity, min or capacity constraints == ")
+            pdb.set_trace()
+
+        try:
+            self.add_cut_constr() # Cut constraints: if cut, no flow
+            print(" == Added cut constraints! == ")
+        except:
+            print(" == Error in adding cut constraints! == ")
+            pdb.set_trace()
+
+        try:
+            self.add_cons_constr() # Conservation at each node
+            print(" == Added conservation constraints! == ")
+        except:
+            print(" == Error in adding conservation constraints! == ")
+            pdb.set_trace()
+
     # Add objective function to the model:
     def add_objective(self):
         f1_e, f2_e, f3_e, F, d_e = self.variables
