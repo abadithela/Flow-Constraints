@@ -36,7 +36,7 @@ class MazeNetwork:
         for ii in range(0, self.len_y + 1):
             for jj in range(0, self.len_x + 1):
                 if (ii,jj) in self.map:
-                    if self.map[(ii,jj)] != '*':
+                    if self.map[(ii,jj)] != '*' and self.map[(ii,jj)] != 'o':
                         states.append((ii,jj))
                     if self.map[(ii,jj)] == 'S':
                         self.source = (ii,jj)
