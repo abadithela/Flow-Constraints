@@ -103,6 +103,7 @@ class MCF():
         # conservation constraints
         outgoing = {}
         incoming = {}
+        pdb.set_trace()
         for node in self.graph.nodes():
             if node not in self.source_nodes and node not in self.sink_nodes:
                 outlist = []
