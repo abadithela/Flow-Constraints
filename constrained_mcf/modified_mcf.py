@@ -4,7 +4,7 @@ import gurobipy as gp
 from gurobipy import GRB
 import sys
 import os
-from lp import *
+import lp
 import scipy.sparse as sp
 sys.path.append('..')
 from static_obstacle_maze.network import MazeNetwork
@@ -23,7 +23,8 @@ class MCF():
         self.variables = None
         self.source_nodes = None
         self.sink_nodes = None
-
+        self.sol = dict() # Dictionary storing solutions of variables
+        self.edge_key_dict = dict() # Dictionary storing solutions of variables
     def add_graph(self, mazefile):
         '''
         Create game graph from file description.
@@ -101,21 +102,32 @@ class MCF():
             ck_in.T fk_e_in = ck_out.T fk_e_out
         '''
         # conservation constraints
+        f1_e, f2_e, f3_e, F, d_e = self.variables
         outgoing = {}
         incoming = {}
-        pdb.set_trace()
         for node in self.graph.nodes():
             if node not in self.source_nodes and node not in self.sink_nodes:
                 outlist = []
                 inlist = []
-                for i,j in self.graph.edges():
-                    if i == node and not j == node:
-                        outlist.append((i,j))
-                    elif j == node and not i == node:
-                        inlist.append((i,j))
+                for ii,jj in self.graph.edges():
+                    if (ii == node) and not (jj == node):
+                        outlist.append((ii,jj))
+                    elif (jj == node) and not (ii == node):
+                        inlist.append((ii,jj))
                 outgoing.update({node: outlist})
                 incoming.update({node: inlist})
-        self.m.addConstrs((gp.quicksum(f[i, j] for i, j in outgoing[j]) == gp.quicksum(f[j, k] for j, k in incoming[j]) for j in self.graph.nodes()), "conservation")
+        # nodes contains all vertices of the graph except soiurce and sink nodes
+        nodes = set(self.graph.nodes)
+        for n in self.source_nodes:
+            if n in nodes:
+                nodes.remove(n)
+        for n in self.sink_nodes:
+            if n in nodes:
+                nodes.remove(n)
+
+        self.m.addConstrs((gp.quicksum(f1_e[ii, jj] for ii, jj in outgoing[j]) == gp.quicksum(f1_e[jj, kk] for jj, kk in incoming[j]) for j in nodes), "conservation_f1_e")
+        self.m.addConstrs((gp.quicksum(f2_e[ii, jj] for ii, jj in outgoing[j]) == gp.quicksum(f2_e[jj, kk] for jj, kk in incoming[j]) for j in nodes), "conservation_f2_e")
+        self.m.addConstrs((gp.quicksum(f3_e[ii, jj] for ii, jj in outgoing[j]) == gp.quicksum(f3_e[jj, kk] for jj, kk in incoming[j]) for j in nodes), "conservation_f3_e")
 
     # Function to add variables:
     def add_vars(self):
@@ -126,11 +138,14 @@ class MCF():
         f2_e = {} # Flow for commodity 2
         f3_e = {} # Flow for commodity
         d_e = {} # Cuts in graph
+        count = 0
         for (i,j) in self.graph.edges():
             f1_e[i,j] = self.m.addVar(vtype=GRB.CONTINUOUS, name = "c1_flow")
             f2_e[i,j] = self.m.addVar(vtype=GRB.CONTINUOUS, name = "c2_flow")
             f3_e[i,j] = self.m.addVar(vtype=GRB.CONTINUOUS, name = "c3_flow")
             d_e[i,j] = self.m.addVar(vtype=GRB.CONTINUOUS, name = "cut_var")
+            self.edge_key_dict[count] = (i,j)
+            count += 1
         F = self.m.addVar(vtype=GRB.CONTINUOUS, name="F")
         self.variables = [f1_e, f2_e, f3_e, F, d_e]
 
@@ -178,24 +193,44 @@ class MCF():
         '''
         Saves the Multi-Commodity Flow LP in an LP model file.
         '''
-        lp.save_model(filename)
+        lp.save_model(self.m, filename)
 
     def compute_sol(self, filename):
         '''
         Solves a linear program model saved in filename, and returns optimal output
         '''
-        sol = lp.solve_lp(filename)
-        return sol
+        sol = lp.solve_lp(self.m)
+        nE = len(self.graph.edges())
+        self.sol["f1opt"] = sol[0:nE]
+        self.sol["f2opt"] = sol[nE+1: 2*nE]
+        self.sol["f3opt"] = sol[2*nE+1: 3*nE]
+        self.sol["Fopt"] = sol[3*nE+1]
+        self.sol["deopt"] = sol[3*nE+2:]
+
+    # Process solution:
+    def process_sol(self):
+        '''
+        Finds the outgoing commodity flows
+        '''
+        f1_e, f2_e, f3_e, F, d_e = self.variables
+        flow_c1 = sum([f1_e[ed].x for ed in self.graph.edges if ed[0] == self.source_dict['s1']])
+        flow_c2 = sum([f2_e[(i,j)].x for i,j in self.graph.edges if i == self.source_dict['s2']])
+        flow_c3 = sum([f3_e[(i,j)].x for i,j in self.graph.edges if i == self.source_dict['s3']])
+        # pdb.set_trace()
+        cuts = [d_e[(i,j)].x for i,j in self.graph.edges]
+        # pdb.set_trace()
+        return flow_c1, flow_c2, flow_c3, cuts
+
 
 # Example of how this class should be used:
 if __name__ == '__main__':
-    mazefile = os.getcwd()+'/maze_new.txt'
+    mazefile = os.getcwd()+'/maze.txt'
     mcf_problem = MCF()
 
     # Setup
     mcf_problem.add_graph(mazefile) # Game graph
-    source_dict = {'s1': (1,1), 's2': (2,2), 's3': (3,3)}
-    sink_dict = {'t1': (4,4), 't2': (3,3), 't3': (3,3)}
+    source_dict = {'s1': (5,0), 's2': (2,2), 's3': (5,0)}
+    sink_dict = {'t1': (2,2), 't2': (0,9), 't3': (0,9)}
     mcf_problem.add_source_dict(source_dict) # Source dict
     mcf_problem.add_sink_dict(sink_dict) # Sink dict
     mcf_problem.add_vars() # Create variables
@@ -204,10 +239,18 @@ if __name__ == '__main__':
     mcf_problem.add_objective()
     mcf_problem.add_constraints()
     print(" ==== Successfully added objective and constraints! ==== ")
+
     # Dump model in file:
+    filename = "mcf.mps"
+    mcf_problem.m.update() # Updating model
+    mcf_problem.save_mcf_lp(filename)
+    mcf_problem.compute_sol(filename)
+    flow_c1, flow_c2, flow_c3, cuts = mcf_problem.process_sol()
 
     # Solve for max flow:
-
+    print("Solution constructed!")
+    pdb.set_trace()
+    print("Read solution")
     # Save LP solution:
 
     # Visualize the plot:
