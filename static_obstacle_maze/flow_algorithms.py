@@ -11,7 +11,71 @@ from gurobipy import GRB
 from network import MazeNetwork, create_network_from_file
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+import pyomo.environ as pyo
+from pyomo.opt import SolverFactory
 
+def find_max_flow_pyomo(maze):
+    G = nx.DiGraph(maze.gamegraph)
+    # remove self loops
+    edges = list(G.edges())
+    for i,j in edges:
+        if i == j:
+            G.remove_edge(i,j)
+
+    model = pyo.ConcreteModel()
+    # st()
+    model.nodes = list(G.nodes())
+    model.edges = list(G.edges())
+
+    source = (5,0)
+    sink = (0,9)
+
+    model.f = pyo.Var(model.edges, within=pyo.NonNegativeReals)
+    # Maximize the flow into the sink
+    def flow_sink(model):
+        return sum(model.f[i,j] for (i, j) in model.edges if j == sink)
+
+    model.o = pyo.Objective(rule=flow_sink, sense=pyo.maximize)
+
+    # Capacity constraints
+    def capacity(model, i, j, k, l):
+        return model.f[(i,j),(k,l)] <= 1
+    model.cap = pyo.Constraint(model.edges, rule=capacity)
+
+    # Conservation constraints
+    def conservation(model, k, l):
+        if (k,l) == sink or (k,l) == source:
+            return pyo.Constraint.Skip
+        incoming  = sum(model.f[i,j] for (i,j) in model.edges if j == (k,l))
+        outgoing = sum(model.f[i,j] for (i,j) in model.edges if i == (k,l))
+        return incoming == outgoing
+    model.con = pyo.Constraint(model.nodes, rule=conservation)
+
+    # nothing enters the source
+    def no_in_source(model, i,j,k,l):
+        if (k,l) == source:
+            return model.f[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_in_source = pyo.Constraint(model.edges, rule=no_in_source)
+    # nothing leaves sink
+    def no_out_sink(model, i,j,k,l):
+        if (i,j) == sink:
+            return model.f[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_out_sink = pyo.Constraint(model.edges, rule=no_out_sink)
+
+    # Create a solver
+    opt = SolverFactory('glpk')
+    # solve
+    results = opt.solve(model)
+
+    flow = dict()
+    for (i,j),(k,l) in model.edges:
+        flow.update({((i,j),(k,l)): model.f[i,j,k,l].value})
+
+    plot_flow(maze, flow)
 
 def get_max_flow(maze):
      # create model
@@ -63,7 +127,11 @@ def get_max_flow(maze):
     # solve IP model
     m.optimize()
     # st()
-    plot_flow(maze,f)
+    flow = dict()
+    for (i,j) in G.edges():
+        flow.update({(i,j): f[i,j].x})
+
+    plot_flow(maze,flow)
     # plot_maze(maze)
 
     # for item in x:
@@ -123,11 +191,17 @@ def plot_flow(maze, flow):
     for y in ys:
         plt.plot([xs[0], xs[-1]], [y, y], color='black', alpha=.33, linestyle=':')
 
+    # for item in flow:
+    #     if flow[item].x > 0.5:
+    #         startxy = item[0]
+    #         endxy = item[1]
+    #         plt.plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color='red', alpha=.33, linestyle='-')
     for item in flow:
-        if flow[item].x > 0.5:
+        if flow[item] > 0.5:
             startxy = item[0]
             endxy = item[1]
             plt.plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color='red', alpha=.33, linestyle='-')
+
     ax.invert_yaxis()
     plt.show()
 
@@ -135,4 +209,5 @@ def plot_flow(maze, flow):
 if __name__ == '__main__':
     mazefile = os.getcwd()+'/maze_new.txt'
     maze = MazeNetwork(mazefile)
-    get_max_flow(maze)
+    # get_max_flow(maze)
+    find_max_flow_pyomo(maze)
