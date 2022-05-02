@@ -133,7 +133,6 @@ def get_max_flow(maze):
 
     plot_flow(maze,flow)
     # plot_maze(maze)
-
     # for item in x:
     #     if x[item].x > 0.5:
     #         print('node {0},{1} belongs to {2}'.format(item[0],item[1],item[2]))
