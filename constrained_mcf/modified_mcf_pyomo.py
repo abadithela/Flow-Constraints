@@ -216,6 +216,56 @@ class MCF():
         model.min_constr3 = pyo.Constraint(s3, rule=flow_src)
 
     # Function to add constraints:
+    def source_sink_cons(self, model):
+        s1 = self.source_dict["s1"]
+        t1 = self.sink_dict["t1"]
+        s2 = self.source_dict["s2"]
+        t2 = self.sink_dict["t2"]
+        s3 = self.source_dict["s3"]
+        t3 = self.sink_dict["t3"]
+        def no_in_source1(model, i,j,k,l):
+            if (k,l) == s1:
+                return model.f1_e[(i,j),(k,l)] == 0
+            else:
+                return pyo.Constraint.Skip
+        model.no_in_source1 = pyo.Constraint(model.edges, rule=no_in_source1)
+        # nothing leaves sink
+        def no_out_sink1(model, i,j,k,l):
+            if (i,j) == t1:
+                return model.f1_e[(i,j),(k,l)] == 0
+            else:
+                return pyo.Constraint.Skip
+        model.no_out_sink1 = pyo.Constraint(model.edges, rule=no_out_sink1)
+        # ================================================================== #
+        def no_in_source2(model, i,j,k,l):
+            if (k,l) == s2:
+                return model.f2_e[(i,j),(k,l)] == 0
+            else:
+                return pyo.Constraint.Skip
+        model.no_in_source2 = pyo.Constraint(model.edges, rule=no_in_source2)
+        # nothing leaves sink
+        def no_out_sink2(model, i,j,k,l):
+            if (i,j) == t2:
+                return model.f2_e[(i,j),(k,l)] == 0
+            else:
+                return pyo.Constraint.Skip
+        model.no_out_sink2 = pyo.Constraint(model.edges, rule=no_out_sink2)
+
+        # ================================================================== #
+        def no_in_source3(model, i,j,k,l):
+            if (k,l) == s3:
+                return model.f3_e[(i,j),(k,l)] == 0
+            else:
+                return pyo.Constraint.Skip
+        model.no_in_source3 = pyo.Constraint(model.edges, rule=no_in_source3)
+        # nothing leaves sink
+        def no_out_sink3(model, i,j,k,l):
+            if (i,j) == t3:
+                return model.f3_e[(i,j),(k,l)] == 0
+            else:
+                return pyo.Constraint.Skip
+        model.no_out_sink3 = pyo.Constraint(model.edges, rule=no_out_sink3)
+
     def add_constraints(self, model):
         self.add_min_constr(model) # F <= sum(f1_e) for e from s1 and F<= sum(f2_e) for e from s2
         self.add_capacity_constr(model)
@@ -231,7 +281,8 @@ class MCF():
         # self.add_cons_constr() # Conservation at each node
         try:
             self.add_cons_constr(model) # Conservation at each node
-            print(" == Added conservation constraints! == ")
+            self.source_sink_cons(model) # Conservation at each node
+            print(" == Added conservation constraints and no inflow to source and no outflow from sink constraints! == ")
         except:
             print(" == Error in adding conservation constraints! == ")
             pdb.set_trace()
@@ -363,7 +414,6 @@ if __name__ == '__main__':
     # mcf_problem.save_mcf_lp(filename)
     f1_e, f2_e, f3_e, F, d_e = mcf_problem.compute_sol(model)
     opt_flows = [f1_e, f2_e, f3_e, F, d_e]
-    pdb.set_trace()
     mcf_problem.plot_flow(opt_flows=opt_flows)
 
     # Solve for max flow:
