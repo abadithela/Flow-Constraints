@@ -201,7 +201,7 @@ class MCF():
         for (i,j) in self.graph.edges():
             self.edge_key_dict[count] = (i,j)
             count += 1
-        self.variables = [model.f1_e, model.f2_e, model.F, model.d_e]
+        self.variables = [model.f1_e, model.f2_e, model.f3_e, model.F, model.d_e]
 
     # Function to add minimizing constraints:
     def add_min_constr(self, model):
