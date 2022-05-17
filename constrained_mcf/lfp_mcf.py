@@ -1,5 +1,8 @@
 # Linear Fractional Program (LFP)
-#
+# 13/5/2022
+# Apurva Badithela
+# Upper-level optimization without the connection to maximum flow at lower level
+# This script solves a linear fractional program formulation of the flow bilevel optimization with three flows
 
 import networkx as nx
 import numpy as np
@@ -15,6 +18,7 @@ sys.path.append('..')
 from static_obstacle_maze.network import MazeNetwork
 import pdb
 import pyomo.environ as pyo
+from pao.pyomo import *
 from pyomo.opt import SolverFactory
 solve_gurobi = False
 
@@ -54,6 +58,96 @@ class MCF():
         self.m.nodes = list(self.graph.nodes())
         self.m.edges = list(self.graph.edges())
         self.m.vars = ['f1_e', 'f2_e', 'f3_e', 'd_e', 'F']
+
+    # Add low-level objective:
+    def create_low_level_obj(self, model, source, sink, interm):
+        try:
+            # Maximize the flow into the sink
+            def flow_sink(model):
+                return sum(model.y['f3_e',i,j] for (i, j) in model.edges if j == sink)
+
+            model.L.o = pyo.Objective(rule=flow_sink, sense=pyo.maximize)
+            # pdb.set_trace()
+
+            check_obj_construction = True
+            return check_obj_construction
+        except:
+            check_obj_construction = False
+            return check_obj_construction
+
+    # Add low-level constraints
+    def create_low_level_constraints(self, model, source, sink, interm):
+        try:
+            # Capacity constraints
+            def capacity(model, i, j, k, l):
+                return model.y['f3_e', (i,j),(k,l)] <= model.t
+            model.L.cap = pyo.Constraint(model.L.edges, rule=capacity)
+
+            # Conservation constraints
+            def conservation(model, k, l):
+                if (k,l) == sink or (k,l) == source:
+                    return pyo.Constraint.Skip
+                incoming  = sum(model.y['f3_e',i,j] for (i,j) in model.edges if j == (k,l))
+                outgoing = sum(model.y['f3_e',i,j] for (i,j) in model.edges if i == (k,l))
+                return incoming == outgoing
+            model.L.con = pyo.Constraint(model.L.nodes, rule=conservation)
+
+            # nothing enters the source
+            def no_in_source(model, i,j,k,l):
+                if (k,l) == source:
+                    return model.y['f3_e',(i,j),(k,l)] == 0
+                else:
+                    return pyo.Constraint.Skip
+            model.L.no_in_source = pyo.Constraint(model.L.edges, rule=no_in_source)
+            # nothing leaves sink
+            def no_out_sink(model, i,j,k,l):
+                if (i,j) == sink:
+                    return model.y['f3_e',(i,j),(k,l)] == 0
+                else:
+                    return pyo.Constraint.Skip
+            model.L.no_out_sink = pyo.Constraint(model.L.edges, rule=no_out_sink)
+
+            # nothing enters the intermediate or leaves the intermediate
+            def no_in_interm(model, i,j,k,l):
+                if (k,l) == interm:
+                    return model.y['f3_e',(i,j),(k,l)] == 0
+                else:
+                    return pyo.Constraint.Skip
+            model.L.no_in_interm = pyo.Constraint(model.L.edges, rule=no_in_interm)
+
+            def no_out_interm(model, i,j,k,l):
+                if (i,j) == interm:
+                    return model.y['f3_e',(i,j),(k,l)] == 0
+                else:
+                    return pyo.Constraint.Skip
+            model.L.no_out_interm = pyo.Constraint(model.L.edges, rule=no_out_interm)
+
+            def cut_cons(model, i, j, k, l):
+                cut = model.y['f3_e',(i,j),(k,l)] + model.y['d_e',(i,j),(k,l)]<= model.t
+                return cut
+            model.L.cut_cons = pyo.Constraint(model.L.edges, rule=cut_cons)
+
+            check_ll_construction = True
+            return check_ll_construction
+        except:
+            check_ll_construction = False
+            return check_ll_construction
+
+    # Create submodel
+    def add_submodel(self, model):
+        fixed_variables = [model.y['d_e',i,j] for i,j in model.edges]
+        fixed_variables.extend([model.y['f1_e',i,j] for i,j in model.edges])
+        fixed_variables.extend([model.y['f2_e',i,j] for i,j in model.edges])
+        fixed_variables.extend([model.y['F',i,j] for i,j in model.edges])
+        model.L = SubModel(fixed=fixed_variables)
+        model.L.edges = model.edges
+        model.L.nodes = model.nodes
+        s3 = self.source_dict['s3']
+        t3 = self.sink_dict['t3']
+        interm = self.source_dict['s2']
+        check_obj_construction = self.create_low_level_obj(model, s3, t3, interm)  # Create low level objective
+        check_construction = self.create_low_level_constraints(model, s3, t3, interm)   # Create low-level constraints
+
 
     def add_source_dict(self, source_dict):
         '''
@@ -108,7 +202,7 @@ class MCF():
 
         model.cap1 = pyo.Constraint(model.edges, rule=capacity1)
         model.cap2 = pyo.Constraint(model.edges, rule=capacity2)
-        model.cap3 = pyo.Constraint(model.edges, rule=capacity3)
+        # model.cap3 = pyo.Constraint(model.edges, rule=capacity3)
 
     def add_cut_constr(self, model):
         '''
@@ -117,19 +211,19 @@ class MCF():
         '''
         # self.m = self.m
         def cut_cons1(model, i, j, k, l):
-            cut = model.y['f1_e',(i,j),(k,l)] + model.y['f1_e',(i,j),(k,l)]<= model.t
+            cut = model.y['f1_e',(i,j),(k,l)] + model.y['d_e',(i,j),(k,l)]<= model.t
             return cut
 
         def cut_cons2(model, i, j, k, l):
-            cut = model.y['f2_e', (i,j),(k,l)] + model.y['f2_e', (i,j),(k,l)]<= model.t
+            cut = model.y['f2_e', (i,j),(k,l)] + model.y['d_e', (i,j),(k,l)]<= model.t
             return cut
         def cut_cons3(model, i, j, k, l):
-            cut = model.y['f3_e',(i,j),(k,l)] + model.y['f3_e',(i,j),(k,l)]<= model.t
+            cut = model.y['f3_e',(i,j),(k,l)] + model.y['d_e',(i,j),(k,l)]<= model.t
             return cut
 
         model.cut_cons1 = pyo.Constraint(model.edges, rule=cut_cons1)
         model.cut_cons2 = pyo.Constraint(model.edges, rule=cut_cons2)
-        model.cut_cons3 = pyo.Constraint(model.edges, rule=cut_cons3)
+        # model.cut_cons3 = pyo.Constraint(model.edges, rule=cut_cons3)
         def cut_ub(model, i,j,k,l):
             return model.y['d_e', (i,j), (k,l)] <= model.t
         model.cut_de = pyo.Constraint(model.edges, rule=cut_ub)
@@ -152,6 +246,7 @@ class MCF():
         flow_2 = {'in':{e:y['f2_e',e] for e in self.m.edges if e[1]==self.sink_dict['t2']}, "out":{e:y['f2_e',e] for e in self.m.edges if e[0]==self.source_dict['s2']}}
 
         flow_3 = {'in':{e:y['f3_e',e] for e in self.m.edges if e[1]==self.sink_dict['t3']}, "out":{e:y['f3_e',e] for e in self.m.edges if e[0]==self.source_dict['s3']}}
+        # return incoming, outgoing, flow_1
         return incoming, outgoing, flow_1, flow_2, flow_3
 
     # Add constraints:
@@ -187,7 +282,7 @@ class MCF():
             incoming  = sum(model.y['f3_e', i,j] for (i,j) in model.edges if j == (k,l))
             outgoing = sum(model.y['f3_e',i,j] for (i,j) in model.edges if i == (k,l))
             return incoming == outgoing
-        model.cons3 = pyo.Constraint(model.nodes, rule=conservation3)
+        # model.cons3 = pyo.Constraint(model.nodes, rule=conservation3)
 
     # Function to add variables:
     def add_vars(self, model):
@@ -216,7 +311,7 @@ class MCF():
         def flow_src2(model):
             return 1 <= sum(model.y['f2_e', i,j] for (i, j) in model.edges if i == s2)
         def flow_src3(model):
-            return 1 <= sum(model.y['f3_e',i,j] for (i, j) in model.edges if i == s3)
+            return 0 == sum(model.y['f3_e',i,j] for (i, j) in model.edges if i == s3)
         model.min_constr1 = pyo.Constraint(rule=flow_src1)
         model.min_constr2 = pyo.Constraint(rule=flow_src2)
         model.min_constr3 = pyo.Constraint(rule=flow_src3)
@@ -235,11 +330,15 @@ class MCF():
         self.aux_constraint(model) # Conservation at each node
         print(" == Added conservation constraints and no inflow to source and no outflow from sink constraints! == ")
 
+        # self.connecting_vars(model)
+        # print(" == Connected high-level and low-level objectives == ")
 
     # Adding auxiliary constraint:
     def aux_constraint(self, model):
         def auxiliary(model ,i, j, k, l):
             return model.y['F',i,j,k,l] == 1
+        # Adding other auxiliary constraints to make t finite:
+
         model.aux_constr = pyo.Constraint(model.edges, rule=auxiliary)
 
     # Add objective function to the self.m:
@@ -247,7 +346,7 @@ class MCF():
     def add_objective(self, model):
         def mcf_flow(model):
             return sum(model.y['d_e',i,j] for (i,j) in model.edges)
-        model.o = pyo.Objective(rule=mcf_flow, sense=pyo.maximize)
+        model.o = pyo.Objective(rule=mcf_flow, sense=pyo.minimize)
 
 
     def save_mcf_lp(self, filename):
@@ -261,23 +360,31 @@ class MCF():
         Solves a linear program model saved in filename, and returns optimal output
         '''
         # Create a solver
-        opt = SolverFactory('glpk')
-        # solve
-        results = opt.solve(model)
+        # opt = SolverFactory('glpk')
+        # results = opt.solve(model)
+
+        with Solver('glpk') as solver:
+            # pdb.set_trace()
+            # solver.options["tol"] = 1E-64
+            results = solver.solve(model, tee=True)
 
         f1_e = dict()
         f2_e = dict()
         f3_e = dict()
         d_e = dict()
         F = 0
-        # pdb.set_trace()
         for (i,j),(k,l) in model.edges:
             F = (model.y['F', i,j,k,l].value)/(model.t.value)
             f1_e.update({((i,j),(k,l)): model.y['f1_e', i,j,k,l].value*F})
             f2_e.update({((i,j),(k,l)): model.y['f2_e', i,j,k,l].value*F})
-            f3_e.update({((i,j),(k,l)): model.y['f3_e', i,j,k,l].value*F})
             d_e.update({((i,j),(k,l)): model.y['d_e', i,j,k,l].value*F})
 
+        for (i,j),(k,l) in model.L.edges:
+            print(model.y['f3_e', i,j,k,l].value)
+
+        for (i,j),(k,l) in model.L.edges:
+            pdb.set_trace()
+            f3_e.update({((i,j),(k,l)): model.y['f3_e', i,j,k,l].value*F})
         return f1_e, f2_e, f3_e, F, d_e
 
     # Process solution:
@@ -291,14 +398,15 @@ class MCF():
             f2_e = y['f2_e',:]
             f3_e = y['f3_e',:]
         else:
-            f1_e, f2_e, f3_e = opt_flows
-        flow_c1 = sum([f1_e[ed]/t for ed in self.graph.edges if ed[0] == self.source_dict['s1']])
-        flow_c2 = sum([f2_e[ed]/t for ed in self.graph.edges if ed[0] == self.source_dict['s2']])
-        flow_c3 = sum([f3_e[ed]/t for ed in self.graph.edges if ed[0] == self.source_dict['s3']])
+            f1_e, f2_e, f3_e, F, d_e = opt_flows
+        flow_c1 = sum([f1_e[ed] for ed in self.graph.edges if ed[0] == self.source_dict['s1']])
+        flow_c2 = sum([f2_e[ed] for ed in self.graph.edges if ed[0] == self.source_dict['s2']])
+        flow_c3 = sum([f3_e[ed] for ed in self.graph.edges if ed[0] == self.source_dict['s3']])
         # pdb.set_trace()
-        cuts = [d_e[(i,j)]/t for i,j in self.graph.edges]
+        cuts = [d_e[(i,j)] for i,j in self.graph.edges]
         # pdb.set_trace()
         return flow_c1, flow_c2, flow_c3, cuts
+        # return flow_c1, cuts
 
 
     # No incoming flows to source and no outgoing flows to sink:
@@ -331,6 +439,7 @@ class MCF():
             else:
                 return pyo.Constraint.Skip
         model.no_in_source2 = pyo.Constraint(model.edges, rule=no_in_source2)
+
         # nothing leaves sink
         def no_out_sink2(model, i,j,k,l):
             if (i,j) == t2:
@@ -344,14 +453,14 @@ class MCF():
                 return model.y['f3_e',(i,j),(k,l)] == 0
             else:
                 return pyo.Constraint.Skip
-        model.no_in_source3 = pyo.Constraint(model.edges, rule=no_in_source3)
+        # model.no_in_source3 = pyo.Constraint(model.edges, rule=no_in_source3)
         # nothing leaves sink
         def no_out_sink3(model, i,j,k,l):
             if (i,j) == t3:
                 return model.y['f3_e',(i,j),(k,l)] == 0
             else:
                 return pyo.Constraint.Skip
-        model.no_out_sink3 = pyo.Constraint(model.edges, rule=no_out_sink3)
+        # model.no_out_sink3 = pyo.Constraint(model.edges, rule=no_out_sink3)
 # =================================================================== #
 
     # Plot MCF flow
@@ -410,7 +519,7 @@ class MCF():
 
 # Example of how this class should be used:
 if __name__ == '__main__':
-    mazefile = os.getcwd()+'/maze_new.txt'
+    mazefile = os.getcwd()+'/maze.txt'
     mcf_problem = MCF()
 
     # Setup
@@ -421,7 +530,7 @@ if __name__ == '__main__':
     mcf_problem.add_sink_dict(sink_dict) # Sink dict
     model = mcf_problem.m
     mcf_problem.add_vars(model) # Create variables
-
+    mcf_problem.add_submodel(model)
     # Add objective and constraints:
     mcf_problem.add_objective(model)
     mcf_problem.add_constraints(model)
@@ -429,10 +538,16 @@ if __name__ == '__main__':
 
     # mcf_problem.save_mcf_lp(filename)
     f1_e, f2_e, f3_e, F, d_e = mcf_problem.compute_sol(model)
-    opt_flows = [f1_e, f2_e, f3_e]
-    # mcf_problem.plot_flow(opt_flows=[f1_e, f2_e])
-    mcf_problem.plot_flow(opt_flows=[f3_e])
+    pdb.set_trace()
+    de_cuts = [e for e, val in d_e.items() if val>0.0]
+    opt_flows = [f1_e, f2_e, f3_e, F, d_e]
     flow_c1, flow_c2, flow_c3, cuts = mcf_problem.process_sol(opt_flows=opt_flows)
+    # mcf_problem.plot_flow(opt_flows=[f1_e, f2_e])
+    pdb.set_trace()
+
+    mcf_problem.plot_flow(opt_flows=[f1_e])
+    mcf_problem.plot_flow(opt_flows=[f2_e])
+    mcf_problem.plot_flow(opt_flows=[f3_e])
 
     # Solve for max flow:
     print("Solution constructed!")

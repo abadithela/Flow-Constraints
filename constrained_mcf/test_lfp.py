@@ -1,3 +1,8 @@
+# Linear Fractional Program (LFP)
+# 13/5/2022
+# Apurva Badithela
+# This script solves a toy linear fractional program
+
 import networkx as nx
 import numpy as np
 import gurobipy as gp
@@ -22,8 +27,8 @@ def lfp_prob_data():
     model.n = 4 # dim of x
     model.m = 4 # A \i R^(m*n)
     model.c = np.array([[1] for i in range(model.n)])
-    model.alpha = -2
-    model.beta = 3
+    model.alpha = 0
+    model.beta = 0
     model.d = np.array([[2] for i in range(model.n)])
     Ac = np.random.rand(model.m,model.m)
     model.A = 0.5*np.identity(model.m) + np.dot(Ac, Ac.transpose())
