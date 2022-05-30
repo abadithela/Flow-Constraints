@@ -14,6 +14,7 @@ from matplotlib.collections import PatchCollection
 import imageio
 
 TILESIZE = 50
+GRID_LINES = False
 
 main_dir = os.path.dirname(os.path.dirname(os.path.realpath("__file__")))
 pacman_fig = main_dir + '/imglib/pacman_fig.png'
@@ -39,15 +40,35 @@ def draw_maze(maze, merge = False):
         for k in np.arange(0,size[1]+1):
             print('{0},{1}'.format(i,k))
             if maze[(i,k)] != '*' and maze[(i,k)] != 'o':
-                tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='k', alpha=0.4)
+                if i == 2 and k == 2:
+                    tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='blue', alpha=0.2)
+                    # road_tiles.append(tile)
+                elif i == 0 and k == 9:
+                    tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='gold', alpha=0.3)
+                else:
+                    # ax.add_patch(Rectangle((x, y), w, h, fill=True, color='black', alpha=.5))
+                    tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE, color='black', alpha=.1)
+                    if i % 2 == k % 2: # racing flag style
+                        # ax.add_patch(Rectangle((x, y), w, h, fill=True, color='gray', alpha=.1))
+                        tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE, fill=True, color='gray', alpha=.1)
+
+                    # tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='k', alpha=0.4)
+                    # tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE, fill=True, color='gray', alpha=.1)
                 road_tiles.append(tile)
             elif maze[(i,k)] == '*':
                 tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='k', alpha=0.8)
                 road_tiles.append(tile)
             elif maze[(i,k)] == 'o':
-                tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='tomato', alpha=0.8)
+                # tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='tomato', alpha=0.5)
+                tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE, fill=True, color='gray', alpha=.1)
                 road_tiles.append(tile)
     ax.add_collection(PatchCollection(road_tiles, match_original=True))
+    # grid lines
+    if GRID_LINES:
+        for z in z_tiles:
+            plt.plot([z, z], [x_tiles[0], x_tiles[-1]], color='black', alpha=.33, linestyle=':')
+        for x in x_tiles:
+            plt.plot([z_tiles[0], z_tiles[-1]], [x, x], color='black', alpha=.33, linestyle=':')
     plt.gca().invert_yaxis()
 
 def draw_timestamp(t, merge = False):
