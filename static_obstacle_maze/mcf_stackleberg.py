@@ -58,7 +58,6 @@ def bilevel(maze):
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return (sum(model.y['d_e',i,j] for (i,j) in model.edges) + lam * flow_3)
     def flow_cut_gap(model):
-        lam = 1
         # flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return sum(model.y['d_e',i,j] for (i,j) in model.edges)
     model.o = pyo.Objective(rule=mcf_flow, sense=pyo.minimize)
@@ -153,6 +152,14 @@ def bilevel(maze):
     #     else:
     #         return pyo.Constraint.Skip
     # model.no_out_sink3 = pyo.Constraint(model.edges, rule=no_out_sink3)
+
+    def cut_cons1(model, i, j, k, l):
+        return model.y['f1_e',(i,j),(k,l)] + model.y['d_e',(i,j),(k,l)]<= model.t
+    model.cut_cons1 = pyo.Constraint(model.edges, rule=cut_cons1)
+
+    def cut_cons2(model, i, j, k, l):
+        return model.y['f2_e',(i,j),(k,l)] + model.y['d_e',(i,j),(k,l)]<= model.t
+    model.cut_cons2 = pyo.Constraint(model.edges, rule=cut_cons2)
 
     # set F = 1
     def auxiliary(model ,i, j, k, l):

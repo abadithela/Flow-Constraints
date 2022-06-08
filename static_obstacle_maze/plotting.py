@@ -71,10 +71,14 @@ def plot_flow(maze, flow , colorstr):
     #         endxy = item[1]
     #         plt.plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color='red', alpha=.33, linestyle='-')
     for item in flow:
-        if flow[item] > 0.5:
-            startxy = item[0]
-            endxy = item[1]
-            plt.plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color=colorstr, alpha=.33, linestyle='-')
+        # if flow[item] > 0.5:
+        startxy = item[0]
+        endxy = item[1]
+        if flow[item] <= 1.0:
+            intensity = flow[item]/2
+        else:
+            intensity = 1.0/2
+        plt.plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color=colorstr, alpha=intensity, linestyle='-')
 
     ax.invert_yaxis()
     plt.show()
