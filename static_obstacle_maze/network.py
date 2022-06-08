@@ -19,6 +19,7 @@ def create_network_from_file(mazefile):
             if item != '\n' and item != '|':
                 map[i,j] = item
                 len_x = j
+    len_x += 1
     return map, len_x, len_y
 
 
