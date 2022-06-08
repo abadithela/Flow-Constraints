@@ -31,8 +31,8 @@ def bilevel(maze):
     model.edges = list(G.edges())
 
     src = (0,0)
-    sink = (0,2)
-    int = (2,1)
+    sink = (2,4)
+    int = (4,0)
 
     vars = ['f1_e', 'f2_e', 'd_e', 'F']
     model.y = pyo.Var(vars, model.edges, within=pyo.NonNegativeReals)
@@ -54,9 +54,11 @@ def bilevel(maze):
     # st()
     # Objective - minimize the flow cut gap + flow_3
     def mcf_flow(model):
-        lam = 1
+        lam = 3
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
-        return (sum(model.y['d_e',i,j] for (i,j) in model.edges) + lam * flow_3)
+        # return (sum(model.t[i,j] for (i,j) in model.edges) + lam * flow_3)
+        return (model.t + lam * flow_3)
+        # return (flow_3)
     def flow_cut_gap(model):
         # flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return sum(model.y['d_e',i,j] for (i,j) in model.edges)
@@ -254,14 +256,15 @@ def bilevel(maze):
     for (i,j),(k,l) in model.L.edges:
         f3_e.update({((i,j),(k,l)): model.L.f3[i,j,k,l].value*F})
 
-    st()
+    # st()
     # for key in d_e.items():
     #     if d_e[key][-1] >= 0.5:
     #         print('Edge {} cut'.format(key))
-
+    print(d_e)
+    st()
     plot_flow(maze, f1_e , 'red')
-
-    # st()
+    plot_flow(maze, f2_e , 'green')
+    plot_flow(maze, f3_e , 'blue')
 
 
 def bilevel_pyomo(maze):

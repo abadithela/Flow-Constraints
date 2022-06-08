@@ -75,7 +75,7 @@ def plot_flow(maze, flow , colorstr):
         startxy = item[0]
         endxy = item[1]
         if flow[item] <= 1.0:
-            intensity = flow[item]/2
+            intensity = max(0,flow[item])/2
         else:
             intensity = 1.0/2
         plt.plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color=colorstr, alpha=intensity, linestyle='-')
