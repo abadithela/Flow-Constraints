@@ -17,6 +17,7 @@ import scipy.sparse as sp
 sys.path.append('..')
 from static_obstacle_maze.network import MazeNetwork
 import pdb
+from ipdb import set_trace as st
 import pyomo.environ as pyo
 from pao.pyomo import *
 from pyomo.opt import SolverFactory
@@ -311,7 +312,7 @@ class MCF():
             return 0 == sum(model.y['f3_e',i,j] for (i, j) in model.edges if i == s3)
         model.min_constr1 = pyo.Constraint(rule=flow_src1)
         model.min_constr2 = pyo.Constraint(rule=flow_src2)
-        model.min_constr3 = pyo.Constraint(rule=flow_src3)
+        # model.min_constr3 = pyo.Constraint(rule=flow_src3)
 
     # Function to add constraints:
     def add_constraints(self, model):
@@ -341,7 +342,11 @@ class MCF():
     # Completed
     def add_objective(self, model):
         def mcf_flow(model):
-            return sum(model.y['d_e',i,j] for (i,j) in model.edges)
+            lam = 1
+            s3 = self.source_dict['s3']
+            # st()
+            flow_3 = sum(model.y['f3_e',i,j] for (i, j) in model.edges if i == s3)
+            return (sum(model.y['d_e',i,j] for (i,j) in model.edges) + lam * flow_3)
         model.o = pyo.Objective(rule=mcf_flow, sense=pyo.minimize)
 
 
@@ -522,8 +527,8 @@ if __name__ == '__main__':
 
     # Setup
     mcf_problem.add_graph(mazefile) # Game graph
-    source_dict = {'s1': (2,0), 's2': (0,2), 's3': (2,0)}
-    sink_dict = {'t1': (0,2), 't2': (2,2), 't3': (2,2)}
+    source_dict = {'s1': (5,0), 's2': (2,2), 's3': (5,0)}
+    sink_dict = {'t1': (2,2), 't2': (0,9), 't3': (0,9)}
     mcf_problem.add_source_dict(source_dict) # Source dict
     mcf_problem.add_sink_dict(sink_dict) # Sink dict
     model = mcf_problem.m
