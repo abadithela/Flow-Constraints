@@ -11,7 +11,7 @@ from gurobipy import GRB
 from network import MazeNetwork, create_network_from_file
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from plotting import plot_flow, plot_maze
+from plotting import plot_flow, plot_maze, plot_mcf
 # import pao.pyomo
 from pao.pyomo import *
 import pyomo.environ as pyo
@@ -31,8 +31,8 @@ def bilevel(maze):
     model.edges = list(G.edges())
 
     src = (0,0)
-    sink = (2,4)
-    int = (4,0)
+    sink = (0,2)
+    int = (2,1)
 
     vars = ['f1_e', 'f2_e', 'd_e', 'F']
     model.y = pyo.Var(vars, model.edges, within=pyo.NonNegativeReals)
@@ -261,10 +261,11 @@ def bilevel(maze):
     #     if d_e[key][-1] >= 0.5:
     #         print('Edge {} cut'.format(key))
     print(d_e)
-    st()
-    plot_flow(maze, f1_e , 'red')
-    plot_flow(maze, f2_e , 'green')
-    plot_flow(maze, f3_e , 'blue')
+    # st()
+    plot_mcf(maze, f1_e, f2_e, f3_e, d_e)
+    # plot_flow(maze, f1_e , 'red')
+    # plot_flow(maze, f2_e , 'green')
+    # plot_flow(maze, f3_e , 'blue')
 
 
 def bilevel_pyomo(maze):
