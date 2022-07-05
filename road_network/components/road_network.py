@@ -134,12 +134,13 @@ class RoadNetwork(Network):
                 if self.map[state] == '+':
                     for i in range(0,self.len_y-1):
                         direction_y = self.map[(i,state[1])]
-                        if direction_y != '+':
+                        if direction_y != '+' and direction_y != '*':
                             break
                     for j in range(0,self.len_x-1):
                         direction_x = self.map[(state[0],j)]
-                        if direction_x != '+':
+                        if direction_x != '+' and direction_x != '*':
                             break
+                # st()
                 if direction_x == '←' and state[1] > 0:
                     new_state = (state[0], state[1]-1)
                     new_states.append(new_state)
