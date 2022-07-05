@@ -39,7 +39,7 @@ def solve_bilevel(maze):
     src = maze.source
     sink = maze.goal
     int = maze.intermediate
-    st()
+    # st()
     vars = ['f1_e', 'f2_e', 'd_e', 'F']
     model.y = pyo.Var(vars, model.edges, within=pyo.NonNegativeReals)
     model.t = pyo.Var(within=pyo.NonNegativeReals)
@@ -273,9 +273,9 @@ if __name__ == '__main__':
     # source = (5,0)
     # sink = (0,9)
     # intermediate = (2,2)
-    src = (8,6)
-    sink = (1,2)
-    int = (4,6)
+    src = (8,5)
+    sink = (1,1)
+    int = (4,5)
     maze.source = src
     maze.goal = sink
     maze.intermediate = int
