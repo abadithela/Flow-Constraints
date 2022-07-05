@@ -260,7 +260,20 @@ def bilevel(maze):
     # for key in d_e.items():
     #     if d_e[key][-1] >= 0.5:
     #         print('Edge {} cut'.format(key))
+    print("Cuts: ")
     print(d_e)
+
+    print("Flow1:")
+    print(f1_e)
+
+    print("Flow2:")
+    print(f2_e)
+
+    print("Flow3:")
+    print(f3_e)
+
+    print("F:")
+    print(F)
     st()
     plot_flow(maze, f1_e , 'red')
     plot_flow(maze, f2_e , 'green')
