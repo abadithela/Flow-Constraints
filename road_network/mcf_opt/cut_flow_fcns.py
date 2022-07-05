@@ -59,10 +59,20 @@ def solve_bilevel(maze):
 
     # Upper leel Objective
     # Objective - minimize 1/F + lambda*f_3/F
+    def flow_cut_gap(model):
+        lam = 10
+        flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
+        return sum(model.y['d_e',i,j] for (i,j) in model.edges) + lam * flow_3
+    # Objective - minimize 1/F + lambda*f_3/F
     def mcf_flow(model):
-        lam = 0.1
+        lam = 1
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return (model.t + lam * flow_3)
+
+    def flow_3(model):
+        flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
+        return flow_3
+
     model.o = pyo.Objective(rule=mcf_flow, sense=pyo.minimize)
 
     # Constraints

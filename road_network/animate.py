@@ -145,7 +145,7 @@ def angle(traces, t):
 
     dir = map[(x_tile,y_tile)]
 
-    dir_dict = {'→' : 180, '←' : 0, '↑': 270, '↓': 90, '*': 0}
+    dir_dict = {'→' : 0, '←' : 180, '↑': 270, '↓': 90, '*': 0}
     # st()
     if dir != '+':
         angle = dir_dict[dir]
