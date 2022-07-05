@@ -39,7 +39,7 @@ def solve_bilevel(maze):
     src = maze.source
     sink = maze.goal
     int = maze.intermediate
-
+    st()
     vars = ['f1_e', 'f2_e', 'd_e', 'F']
     model.y = pyo.Var(vars, model.edges, within=pyo.NonNegativeReals)
     model.t = pyo.Var(within=pyo.NonNegativeReals)
@@ -63,17 +63,31 @@ def solve_bilevel(maze):
         lam = 10
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return sum(model.y['d_e',i,j] for (i,j) in model.edges) + lam * flow_3
+
     # Objective - minimize 1/F + lambda*f_3/F
     def mcf_flow(model):
         lam = 1
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return (model.t + lam * flow_3)
 
+    # Objective - minimize 1/F + lambda*f_3/F
+    def mcf_flow_new(model):
+        lam1 = 1
+        lam2 = 1e4
+        flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
+        return lam1*model.t + lam2*flow_3
+
     def flow_3(model):
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return flow_3
 
-    model.o = pyo.Objective(rule=mcf_flow, sense=pyo.minimize)
+    # Objective - minimize 1/F + lambda*f_3/F
+    def mcf_flow_quad(model):
+        lam = 1
+        flow_3 = sum(model.L.f3[i,j]**2 for (i, j) in model.L.edges if i == src)
+        return (model.t**2 + lam * flow_3)
+
+    model.o = pyo.Objective(rule=mcf_flow_new, sense=pyo.minimize)
 
     # Constraints
     # Maximize the flow into the sink
@@ -159,6 +173,13 @@ def solve_bilevel(maze):
     # Objective - Maximize the flow into the sink
     def flow_sink(model):
         return sum(model.f3[i,j] for (i, j) in model.edges if j == sink)
+
+    def flow_sink_new(model):
+        return sum(model.f3[i,j] for (i, j) in model.edges if j == sink)
+
+    def flow_sink_quad(model):
+        return sum(model.f3[i,j]**2 for (i, j) in model.edges if j == sink)
+
     model.L.o = pyo.Objective(rule=flow_sink, sense=pyo.maximize)
 
     # Capacity constraints
@@ -247,14 +268,14 @@ def solve_bilevel(maze):
 if __name__ == '__main__':
     main_dir = os.getcwd()
     par_dir = os.path.dirname(main_dir)
-    networkfile = par_dir + '/road_network.txt'
+    networkfile = par_dir + '/large_road_network.txt'
     maze = RoadNetwork(networkfile)
     # source = (5,0)
     # sink = (0,9)
     # intermediate = (2,2)
-    src = (4,2)
-    sink = (2,0)
-    int = (2,4)
+    src = (8,6)
+    sink = (1,2)
+    int = (4,6)
     maze.source = src
     maze.goal = sink
     maze.intermediate = int

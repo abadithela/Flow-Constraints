@@ -160,7 +160,7 @@ class RoadNetwork(Network):
 if __name__ == '__main__':
     main_dir = os.getcwd()
     par_dir = os.path.dirname(main_dir)
-    networkfile = par_dir + '/road_network.txt'
+    networkfile = par_dir + '/large_road_network.txt'
     road_network = RoadNetwork(networkfile)
     road_network.print_network()
     # st()
