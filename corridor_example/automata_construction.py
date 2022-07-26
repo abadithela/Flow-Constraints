@@ -73,7 +73,7 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
             elif succ[0] == si[0] and succ[1] == si[1]:
                 act = 'stay'
             ts.transitions.add(tsi, ts_succ_k)#, sys_actions=act)
-    ts.save('TS.png')
+    ts.save('ts.pdf')
     # st()
     return ts, state_map
 
@@ -233,7 +233,7 @@ def construct_virtual_product_automaton(prod_ba, ts):
 
 def construct_product_automaton(ba, ts):
     prod_aut, accepting = products.ts_ba_sync_prod(ts, ba)
-    prod_aut.save('example_prod_aut.pdf')
+    # prod_aut.save('example_prod_aut.pdf')
     # st()
     return prod_aut, accepting
 
@@ -312,6 +312,7 @@ if __name__ == '__main__':
 
     # Construct the product automata for just the transition system and one BA - just to check
     check_goal, goal_acc = construct_product_automaton(sys_ba, ts) # check if it goes to goal
+    check_goal.save('prod_aut_sys_and_ts.pdf')
     st()
 
     # Find the product Buchi Automaton for the system and tester specs
