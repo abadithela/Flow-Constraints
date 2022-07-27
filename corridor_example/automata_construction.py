@@ -42,8 +42,8 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
     ts.sys_actions.add_from({'e', 'w', 'stay', ''} )
     ts.actions = ['n', 'e', 's', 'w', 'stay']
     # ts.atomic_propositions = []
-    ts.atomic_propositions.add('goal')
-    ts.atomic_propositions.add('intermed')
+    ts.atomic_propositions.add('(goal)')
+    ts.atomic_propositions.add('(intermed)')
     # for xi in range(lenx):
     #     ts.atomic_propositions.add("x="+str(xi))
     # for yi in range(leny):
@@ -56,11 +56,11 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
         if si[1] == 0 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "goal")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'goal'})
+            ts.states.add(tsi, ap={'(goal)'})
         elif si[1] == 2 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'intermed'})
+            ts.states.add(tsi, ap={'(intermed)'})
         # else:
         #     ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
         #     ts.states[tsi]['ap'] = (ap_tsi,)
@@ -296,6 +296,7 @@ def ts_test(): # From TuLiP source code
         assert(ts.states[state]['ap'] == set() )
 
     # logger.debug(ts)
+    ts.save('ts_tulip.pdf')
     return ts
 
 if __name__ == '__main__':
@@ -309,6 +310,7 @@ if __name__ == '__main__':
     ba_tulip = ba_test()
     ts_tulip = ts_test()
     test_prod, acc = products.ts_ba_sync_prod(ts_tulip, ba_tulip)
+    test_prod.save('prod_tulip.pdf')
 
     # Construct the product automata for just the transition system and one BA - just to check
     check_goal, goal_acc = construct_product_automaton(sys_ba, ts) # check if it goes to goal
