@@ -65,6 +65,10 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
         #     ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
         #     ts.states[tsi]['ap'] = (ap_tsi,)
         for k, ts_succ_k in enumerate(ts_succ):
+            # if ts.states[tsi]['ap'] == {'(goal)'}:
+            #     pass
+            #     # ts.transitions.add(tsi, tsi)
+            # else:
             succ = successors[k]
             if succ[0] == si[0] and succ[1] == si[1]+1:
                 act = 'e'
@@ -86,8 +90,8 @@ def get_BA(f, orig_guard):
     Sa = [s for s in S if "accept" in s]
     props = ['('+s+')' for s in symbols.keys()]
     props_orig = [orig_guard['('+s+')'] for s in symbols.keys()]
-    props.append(True)
-    props_orig.append(True)
+    # props.append(True)
+    # props_orig.append(True)
     # Sigma = PowerSet(props)
     trans = []
     trans_orig = []
@@ -210,6 +214,7 @@ def async_product_BAs(test_ba, sys_ba):
                 for end_state in S_prod:
                     if str(ui)+'_test' == str(start_state[0]) and str(vi)+'_test' == str(end_state[0]):
                         if start_state[1] == end_state[1]:
+                            # if di['letter'] != set():
                             prod_trans.append((start_state,end_state,di['letter']))
 
     for ui,vi,di in sys_ba.edges(data=True): # Reading the guarded labels
@@ -217,12 +222,55 @@ def async_product_BAs(test_ba, sys_ba):
                 for end_state in S_prod:
                     if str(ui)+'_sys' == str(start_state[1]) and str(vi)+'_sys' == str(end_state[1]):
                         if start_state[0] == end_state[0]:
+                            # if di['letter'] != set():
                             prod_trans.append((start_state,end_state,di['letter']))
     # st()
-    prod_ba = construct_BA(S_prod, S0_prod, Sa_prod, props_prod, prod_trans)
+    # for trans1 in prod_trans:
+    #     for trans2 in prod_trans:
+    #         if trans1[0] == trans2[0] and trans1[1] == trans2[1]:
+    #             if trans1[2] == '(goal)' or trans1[2] == '(intermed)':
+    #                 trans_to_keep.append()
+
+    # Check if transitions are duplicate - proposition takes precedence
+    trans_list = remove_redundant_transitions(prod_trans)
+
+
+    prod_ba = construct_BA(S_prod, S0_prod, Sa_prod, props_prod, trans_list)
     # st()
     prod_ba.save('product_ba.pdf')
     return prod_ba
+
+def remove_redundant_empty_sets(trans_dict):
+    transition_list = []
+    for key in trans_dict.keys():
+        # st()
+        clean_transitions = []
+        clean_transitions = [i for i in trans_dict[key] if i != set()]
+        if clean_transitions == []:
+            clean_transitions = [set()]
+        for item in clean_transitions:
+            transition_list.append((key[0], key[1], item))
+    return transition_list
+
+def remove_redundant_transitions(trans_list):
+    trans_dict = get_trans_dict(trans_list)
+    trans_list_clean = remove_redundant_empty_sets(trans_dict)
+    return trans_list_clean
+
+
+def get_trans_dict(trans_list):
+    trans_dict = dict()
+    # st()
+    for k, trans in enumerate(trans_list):
+        transitions = []
+        transitions.append(trans[2])
+        if (trans[0],trans[1]) in trans_dict.keys():
+            transitions = transitions + trans_dict[(trans[0],trans[1])]
+        trans_dict.update({(trans[0],trans[1]): transitions})
+    # st()
+    return trans_dict
+
+
 
 def construct_virtual_product_automaton(prod_ba, ts):
     # st()
