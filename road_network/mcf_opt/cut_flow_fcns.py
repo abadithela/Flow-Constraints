@@ -21,10 +21,9 @@ from helpers.plotting import plot_flow, plot_maze, plot_mcf
 from pao.pyomo import *
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
+debug = False
 
-debug = True
-
-def solve_bilevel(maze):
+def solve_bilevel(maze, lam2=1e6):
     G = nx.DiGraph(maze.gamegraph)
     # remove self loops
     edges = list(G.edges())
@@ -73,7 +72,6 @@ def solve_bilevel(maze):
     # Objective - minimize 1/F + lambda*f_3/F
     def mcf_flow_new(model):
         lam1 = 1
-        lam2 = 1e4
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return lam1*model.t + lam2*flow_3
 
@@ -168,6 +166,15 @@ def solve_bilevel(maze):
     # Adding other auxiliary constraints to make t finite:
     model.aux_constr = pyo.Constraint(model.edges, rule=auxiliary)
 
+    # Auxiliary edge cut for debugging purposes
+    def aux_edge(model, i,j, k,l):
+        if (i,j) == (2,2) and (k,l) == (2,3):
+            return model.y['d_e', i,j,k,l] == 1
+        else:
+            return pyo.Constraint.Skip
+    # Add an obstacle to check if the
+    if debug:
+        model.edge_constr = pyo.Constraint(model.edges, rule=aux_edge)
 
     # SUBMODEL
     # Objective - Maximize the flow into the sink
@@ -247,38 +254,63 @@ def solve_bilevel(maze):
     d_e = dict()
     F = 0
     for (i,j),(k,l) in model.edges:
-        F = (model.y['F', i,j,k,l].value)/(model.t.value)
+        F = (model.y['F',i,j,k,l].value)/(model.t.value)
         f1_e.update({((i,j),(k,l)): model.y['f1_e', i,j,k,l].value*F})
         f2_e.update({((i,j),(k,l)): model.y['f2_e', i,j,k,l].value*F})
         d_e.update({((i,j),(k,l)): model.y['d_e', i,j,k,l].value*F})
+
     for (i,j),(k,l) in model.L.edges:
         f3_e.update({((i,j),(k,l)): model.L.f3[i,j,k,l].value*F})
 
+    return f1_e, f2_e, f3_e, d_e, F
     # st()
     # for key in d_e.items():
     #     if d_e[key][-1] >= 0.5:
     #         print('Edge {} cut'.format(key))
-    print(d_e)
-    st()
-    plot_mcf(maze, f1_e, f2_e, f3_e, d_e)
+
 
 
 
 
 if __name__ == '__main__':
+    grid = "small"
     main_dir = os.getcwd()
     par_dir = os.path.dirname(main_dir)
-    networkfile = par_dir + '/large_road_network.txt'
+    if grid == "large":
+        networkfile = par_dir + '/large_road_network.txt'
+        src = (8,2)
+        sink = (2,8)
+        int = (5,5)
+
+    elif grid == "small":
+        networkfile = par_dir + '/road_network.txt'
+        src = (4,2)
+        sink = (2,0)
+        int = (2,4)
+
+    reg_param_list = np.logspace(-7.0, 7.0, num=20)
     maze = RoadNetwork(networkfile)
     # source = (5,0)
     # sink = (0,9)
     # intermediate = (2,2)
-    src = (8,5)
-    sink = (1,1)
-    int = (4,5)
+
     maze.source = src
     maze.goal = sink
     maze.intermediate = int
 
     # setup_problem(maze, source, sink, intermediate)
-    solve_bilevel(maze)
+    Fmax = 0
+    lam_max = 0
+    for lam2 in reg_param_list:
+        try:
+            f1_e, f2_e, f3_e, d_e, F = solve_bilevel(maze, lam2)
+            if F > Fmax:
+                Fmax = F
+                lam_max = lam2
+                max_flows = [f1_e, f2_e, f3_e, d_e]
+        except ValueError:
+            continue
+    print(Fmax)
+    print(lam_max)
+    st()
+    plot_mcf(maze, max_flows[0], max_flows[1], max_flows[2], max_flows[3])
