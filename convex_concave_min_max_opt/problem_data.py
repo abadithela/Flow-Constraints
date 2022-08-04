@@ -8,9 +8,11 @@ from collections import OrderedDict as od
 import _pickle as pickle
 import os
 import networkx as nx
-from components.road_network import RoadNetwork, create_network_from_file
+from road_network.components.road_network import RoadNetwork, create_network_from_file
 import matplotlib.pyplot as plt
 from scipy import sparse as sp
+from optimization import Vout, Vin
+import pdb
 
 debug = False
 
@@ -26,45 +28,46 @@ def initialize(maze):
     edges = list(G.edges())
     edges_keys = {k: e for k,e in enumerate(edges)}
 
-    src = maze.source
-    sink = maze.goal
-    int = maze.intermediate
     vars_x = ['f1_e', 'f2_e', 'd_e', 'F']
     vars_y = ['f3_e']
     edges_dict = {k: 0 for k in edges} # Edges have flow.
     x = {k: edges_dict for k in vars_x}
     y = {k: edges_dict for k in vars_y}
-    return x, y, src, sink, int, G, nodes_keys, edges_keys
+    return x, y, G, nodes_keys, edges_keys
 
 # Prefix z: zeros
-def objective(x,y,reg, edges_keys):
+def objective(edges_keys):
     ne = len(list(edges_keys.keys())) # number of edges
     zf1 = np.zeros((ne,1))
     zf2 = np.zeros((ne,1))
-    zf3 = np.zeros((ne,1))
+    of3 = np.ones((ne,1))
     zde = np.zeros((ne,1))
     ot = 1.0/ne*np.ones((ne,1))
 
     c1 = np.vstack((zf1, zf2, zde, ot)) # zf: zero vector for f, and ot: one vector for t
-    c2 = zf3.copy()
+    c2 = of3.copy()
     # Objective function: c1.T x + c2.T y
     return c1, c2
 
-def feas_constraint(x,y, edges_keys):
+def feas_constraint(edges_keys):
     ne = len(list(edges_keys.keys())) # number of edges
     Af1 = np.eye(ne)
     Af2 = np.eye(ne)
     Af3 = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
-    b_feas = np.zeros((3*ne,))
+    b_feas = np.zeros((4*ne,1))
     A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros, blk_zeros))
     A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros, blk_zeros))
     A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, blk_zeros, Af3))
-    A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+    A_feas_de = np.hstack((blk_zeros, blk_zeros, np.eye(ne), blk_zeros, Af3))
+    A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3, A_feas_de))
+
+    assert A_feas.shape[0] == b_feas.shape[0]
+    assert A_feas.shape[1] == 5*ne
     return A_feas, b_feas
 
-def cut_constraint(x,y, edges_keys):
+def cut_constraint(edges_keys):
     ne = len(list(edges_keys.keys())) # number of edges
     Af1 = -1*np.eye(ne)
     Af2 = -1*np.eye(ne)
@@ -73,40 +76,93 @@ def cut_constraint(x,y, edges_keys):
     Aot = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
-    b_feas = np.zeros((3*ne,))
+    b_feas = np.zeros((3*ne,1))
     A_feas_f1= np.hstack((Af1, blk_zeros, Ade, Aot, blk_zeros))
     A_feas_f2= np.hstack((blk_zeros, Af2, Ade, Aot, blk_zeros))
     A_feas_f3= np.hstack((blk_zeros, blk_zeros, Ade, Aot, Af3))
     A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+    assert A_feas.shape[0] == b_feas.shape[0]
     return A_feas, b_feas
 
-def conservation_constraint(x,y, nodes_keys, edges_keys, src, int, sink):
+def conservation_helper_function(edges_keys, nodes_keys, src, target):
+    ne = len(list(edges_keys.keys())) # number of edges
+    nv = len(list(nodes_keys.keys())) # number of edges
+    module_mtrx = np.zeros((nv,ne)) # One matrix for holding all conservation terms
+    Afeas1 = module_mtrx.copy()
+    Afeas2 = module_mtrx.copy()
     for k,node in nodes_keys.items():
-        if node not in set(src, int, sink):
-            # Afeas1: sum_i f^i(u,v) >= sum_i f^i(v,u)
-            
-            # Afeas2: sum_i f^i(u,v) <= sum_i f^i(v,u)
+        if node not in {src, target}:
+        # Afeas1: sum_i f^i(u,v) >= sum_i f^i(v,u)
+        # Afeas2: sum_i f^i(u,v) <= sum_i f^i(v,u)
+            out_node_edge_ind = [k for k, v in edges_keys.items() if v[0]==node]
+            in_node_edge_ind = [k for k, v in edges_keys.items() if v[1]==node]
+            for out_ind in out_node_edge_ind:
+                Afeas1[k][out_ind] = -1
+                Afeas2[k][out_ind] = 1
+            for in_ind in in_node_edge_ind:
+                Afeas1[k][in_ind] = 1
+                Afeas2[k][in_ind] = -1
+    return Afeas1, Afeas2
 
-    Afeas = np.vstack((Afeas1, Afeas2))
-    bfeas = np.vstack((bfeas1, bfeas2))
-    return Afeas, bfeas
+def conservation_constraint(nodes_keys, edges_keys, src, int, sink):
+    ne = len(list(edges_keys.keys())) # number of edges
+    nv = len(list(nodes_keys.keys())) # number of edges
+    module_mtrx = np.zeros((nv,ne)) # One matrix for holding all conservation
+    module_vec = np.zeros((nv,1))
 
-def min_flow_constraint(x,y,edges_keys, src, int,sink):
+    Afeas1_f1, Afeas2_f1 = conservation_helper_function(edges_keys, nodes_keys, src, int)
+    Afeas1_f2, Afeas2_f2 = conservation_helper_function(edges_keys, nodes_keys, int, sink)
+    Afeas1_f3, Afeas2_f3 = conservation_helper_function(edges_keys, nodes_keys, src, sink)
+
+    # Constructing block matrices:
+    Acons1_f1 = np.hstack((Afeas1_f1, module_mtrx, module_mtrx, module_mtrx, module_mtrx))
+    Acons2_f1 = np.hstack((Afeas2_f1, module_mtrx, module_mtrx, module_mtrx, module_mtrx))
+
+    Acons1_f2 = np.hstack((module_mtrx, Afeas1_f2, module_mtrx, module_mtrx, module_mtrx))
+    Acons2_f2 = np.hstack((module_mtrx, Afeas2_f2, module_mtrx, module_mtrx, module_mtrx))
+
+    Acons1_f3 = np.hstack((module_mtrx, module_mtrx, module_mtrx, module_mtrx, Afeas1_f3))
+    Acons2_f3 = np.hstack((module_mtrx, module_mtrx, module_mtrx, module_mtrx, Afeas2_f3))
+
+    # Final assembly:
+    Acons1 = np.vstack((Acons1_f1, Acons1_f2, Acons1_f3))
+    Acons2 = np.vstack((Acons2_f1, Acons2_f2, Acons2_f3))
+    bcons1 = np.vstack((module_vec, module_vec, module_vec))
+    bcons2 = np.vstack((module_vec, module_vec, module_vec))
+    Acons = np.vstack((Acons1, Acons2))
+    bcons = np.vstack((bcons1, bcons2))
+    assert Acons.shape[0] == bcons.shape[0]
+    assert Acons.shape[1] == 5*ne
+    return Acons, bcons
+
+def min_flow_constraint(edges_keys, src, int,sink):
     ne = len(list(edges_keys.keys())) # number of edges
     out_s1_edge_ind = [k for k, v in edges_keys.items() if v[0]==src]
     out_s2_edge_ind = [k for k, v in edges_keys.items() if v[0]==int]
     out_s3_edge_ind = [k for k, v in edges_keys.items() if v[0]==src]
 
     zero_row_vec = np.zeros((1,ne))
-    af1_ones = np.ones((len(ne),))
-    af1 = sp.csr_array(af1_ones, (zero_row_vec, out_s1_edge_ind), shape=(1,ne))
-    af2 = sp.csr_array(af2_ones, (zero_row_vec, out_s2_edge_ind), shape=(1,ne))
-    af3 = sp.csr_array(af3_ones, (zero_row_vec, out_s3_edge_ind), shape=(1,ne))
-    bfeas = np.array([[1],[1],[1]])
-    Afeas = np.vstack((af1, af2, af3))
+    af1 = np.zeros((1, ne))
+    af2 = np.zeros((1,ne))
+    af3 = np.zeros((1,ne))
+
+    for k in out_s1_edge_ind:
+        af1[0,k] = 1
+    for k in out_s2_edge_ind:
+        af2[0,k] = 1
+    for k in out_s3_edge_ind:
+        af3[0,k] = 1
+
+    a1 = np.hstack((af1, zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec))
+    a2 = np.hstack((zero_row_vec, af2, zero_row_vec, zero_row_vec, zero_row_vec))
+    a3 = np.hstack((zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec, af3))
+
+    bfeas = np.ones((3,1))
+    Afeas = np.vstack((a1, a2, a3))
+    assert Afeas.shape[0] == bfeas.shape[0]
     return Afeas, bfeas
 
-def capacity_constraint(x,y, edges_keys):
+def capacity_constraint(edges_keys):
     ne = len(list(edges_keys.keys())) # number of edges
     Af1 = -1*np.eye(ne)
     Af2 = -1*np.eye(ne)
@@ -114,12 +170,58 @@ def capacity_constraint(x,y, edges_keys):
     Aot = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
-    b_feas = np.zeros((3*ne,))
+    b_feas = np.zeros((3*ne,1))
     A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, Aot, blk_zeros))
     A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, Aot, blk_zeros))
     A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, Aot, Af3))
     A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+    assert A_feas.shape[0] == b_feas.shape[0]
     return A_feas, b_feas
+
+# Equality constraints on 1/t:
+def eq_aux_constraint(edges_keys):
+    ne = len(list(edges_keys.keys())) # number of edges
+    eq_block = np.array([[1,-1],[-1,1]])
+    Aeq_t = np.zeros((2*ne-2, ne))
+    beq = np.zeros((2*ne-2,1))
+    # Take care of t
+    for k in range(ne-1):
+        At = np.zeros((2,ne))
+        At[0:2, k:k+2] = eq_block
+        Aeq_t[k:k+2] = At.copy()
+
+    # Organize larger matrices:
+    zblock = 0*Aeq_t
+    Aeq = np.hstack((zblock, zblock, zblock, Aeq_t, zblock))
+    assert Aeq.shape[0] == beq.shape[0]
+    return Aeq, beq
+
+# Collecting all constraints together as g(x,y) = A[x;y] - b>=0
+def all_constraints(edges_keys, nodes_keys, src, int, sink):
+    A_feas, b_feas = feas_constraint(edges_keys)
+    A_cut, b_cut = cut_constraint(edges_keys)
+    A_cap, b_cap = capacity_constraint(edges_keys)
+    A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink)
+    A_cons, b_cons = conservation_constraint(nodes_keys, edges_keys, src, int, sink)
+    A_eq, b_eq = eq_aux_constraint(edges_keys)
+    A = np.vstack((A_feas, A_cut, A_cap, A_flow, A_cons, A_eq))
+    b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
+    assert A.shape[0] == b.shape[0]
+    return A, b
+
+def solve_opt(maze, src, sink, int):
+    x, y, G, nodes_keys, edges_keys = initialize(maze)
+    # pdb.set_trace()
+    A,b = all_constraints(edges_keys, nodes_keys, src, int, sink)
+    c1, c2 = objective(edges_keys)
+    ne = len(list(edges_keys.keys())) # number of edges
+    x0 = np.vstack((np.zeros((ne,1)), np.zeros((ne,1)), np.ones((ne,1)), np.zeros((ne,1))))
+    # pdb.set_trace()
+    T = 20
+    eta = 0.1
+    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, edges_keys)
+    Vin(c1, c2, A, b, x0, edges_keys)
+
 
 if __name__ == '__main__':
     # test
@@ -127,15 +229,17 @@ if __name__ == '__main__':
     main_dir = os.getcwd()
     par_dir = os.path.dirname(main_dir)
     if grid == "large":
-        networkfile = par_dir + '/large_road_network.txt'
+        networkfile = par_dir + '/road_network/large_road_network.txt'
         src = (8,2)
         sink = (2,8)
         int = (5,5)
 
     elif grid == "small":
-        networkfile = par_dir + '/road_network.txt'
+        networkfile = par_dir + '/road_network/road_network.txt'
         src = (4,2)
         sink = (2,0)
         int = (2,4)
 
     maze = RoadNetwork(networkfile)
+    reg = 10
+    solve_opt(maze, src, sink, int)
