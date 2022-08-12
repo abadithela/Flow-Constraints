@@ -1,5 +1,8 @@
 # Converting network flow formulations into convex-concave min-max optimization
 # Vectors: x = [f1e/F, f2e/F, de/F, F/F], y = [f3e/F]
+# TO Do (11/8/22)
+# 1. Check if max oracle corresponds to the right Pyomo code
+# 2. Verify every step of the max oracle algorithm and see if it checks out.
 import sys
 sys.path.append('..')
 import numpy as np
@@ -11,7 +14,7 @@ import networkx as nx
 from road_network.components.road_network import RoadNetwork, create_network_from_file
 import matplotlib.pyplot as plt
 from scipy import sparse as sp
-from optimization import Vout, Vin
+from optimization import Vout, Vin, Vin_oracle, max_oracle_gd, projx, gradient
 import pdb
 
 debug = False
@@ -27,7 +30,6 @@ def initialize(maze):
     nodes_keys = {k: v for k,v in enumerate(nodes)}
     edges = list(G.edges())
     edges_keys = {k: e for k,e in enumerate(edges)}
-
     vars_x = ['f1_e', 'f2_e', 'd_e', 'F']
     vars_y = ['f3_e']
     edges_dict = {k: 0 for k in edges} # Edges have flow.
@@ -54,13 +56,16 @@ def feas_constraint(edges_keys):
     Af1 = np.eye(ne)
     Af2 = np.eye(ne)
     Af3 = np.eye(ne)
+    Ade = np.eye(ne)
+    At = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
     b_feas = np.zeros((4*ne,1))
     A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros, blk_zeros))
     A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros, blk_zeros))
     A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, blk_zeros, Af3))
-    A_feas_de = np.hstack((blk_zeros, blk_zeros, np.eye(ne), blk_zeros, Af3))
+    A_feas_t = np.hstack((blk_zeros, blk_zeros, blk_zeros, At, blk_zeros))
+    A_feas_de = np.hstack((blk_zeros, blk_zeros, Ade, blk_zeros, blk_zeros))
     A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3, A_feas_de))
 
     assert A_feas.shape[0] == b_feas.shape[0]
@@ -199,26 +204,60 @@ def eq_aux_constraint(edges_keys):
 # Collecting all constraints together as g(x,y) = A[x;y] - b>=0
 def all_constraints(edges_keys, nodes_keys, src, int, sink):
     A_feas, b_feas = feas_constraint(edges_keys)
-    A_cut, b_cut = cut_constraint(edges_keys)
     A_cap, b_cap = capacity_constraint(edges_keys)
-    A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink)
     A_cons, b_cons = conservation_constraint(nodes_keys, edges_keys, src, int, sink)
     A_eq, b_eq = eq_aux_constraint(edges_keys)
-    A = np.vstack((A_feas, A_cut, A_cap, A_flow, A_cons, A_eq))
-    b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
+    A_cut, b_cut = cut_constraint(edges_keys)
+    A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink)
+    # A = np.vstack((A_feas, A_cut, A_cap, A_flow, A_cons, A_eq))
+    # b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
+    A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_cut, A_flow))
+    b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_cut, b_flow))
     assert A.shape[0] == b.shape[0]
     return A, b
 
+# Matching edges:
+def match_edges(edges_keys, ne, flow_dict):
+    flow_init = np.zeros((ne,1))
+    # for k, v in flow_dict.items():
+    for k, edge in edges_keys.items():
+        flow_init[k,0] = flow_dict[edge[0]][edge[1]] # Parsing the flow dict
+    return flow_init
+
+# Function to get a candidate initial condition:
+def get_candidate_flows(G, edges_keys, src, int, sink):
+    ne = len(list(edges_keys.keys()))
+    Gnx = nx.DiGraph()
+    for edge in G.edges():
+        Gnx.add_edge(*edge, capacity=1.0)
+    f1e_value, f1e_dict = nx.maximum_flow(Gnx, src, int)
+    f2e_value, f2e_dict = nx.maximum_flow(Gnx, int, sink)
+    f3e_value, f3e_dict = nx.maximum_flow(Gnx, src, sink)
+    F_init = min(f1e_value, f2e_value)
+    assert F_init > 0.0
+    f1e_init = match_edges(edges_keys, ne, f1e_dict) # Match flow values to edges keys consistent with the indices used in our optimization.
+    f2e_init = match_edges(edges_keys, ne, f2e_dict)
+    f3e_init = match_edges(edges_keys, ne, f3e_dict)
+    tfac = 1.0/F_init
+    t_init = tfac * np.ones((ne,1))
+    zero_cuts = np.zeros((ne,1))
+    x0 = np.vstack((f1e_init*tfac, f2e_init*tfac, zero_cuts, t_init))
+    return x0, f3e_init
+
+
+
 def solve_opt(maze, src, sink, int):
     x, y, G, nodes_keys, edges_keys = initialize(maze)
+    x0, y0 = get_candidate_flows(G, edges_keys, src, int, sink)
     # pdb.set_trace()
-    A,b = all_constraints(edges_keys, nodes_keys, src, int, sink)
+    Aineq,bineq = all_constraints(edges_keys, nodes_keys, src, int, sink)
+    assert x0.shape[0] + y0.shape[0] == Aineq.shape[1]
     c1, c2 = objective(edges_keys)
     ne = len(list(edges_keys.keys())) # number of edges
-    x0 = np.vstack((np.zeros((ne,1)), np.zeros((ne,1)), np.ones((ne,1)), np.zeros((ne,1))))
-    # pdb.set_trace()
+
     T = 20
     eta = 0.1
+    # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
     xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, edges_keys)
     Vin(c1, c2, A, b, x0, edges_keys)
 
