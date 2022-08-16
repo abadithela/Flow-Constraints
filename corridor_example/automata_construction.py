@@ -42,11 +42,13 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
     ts.sys_actions.add_from({'e', 'w', 'stay', ''} )
     ts.actions = ['n', 'e', 's', 'w', 'stay']
     # ts.atomic_propositions = []
-    ts.atomic_propositions.add('(goal)')
     ts.atomic_propositions.add('(goal1)')
+    # ts.atomic_propositions.add('(not goal1)')
     ts.atomic_propositions.add('(key1)')
     ts.atomic_propositions.add('(goal2)')
     ts.atomic_propositions.add('(key2)')
+    ts.atomic_propositions.add('(goal)')
+    # ts.atomic_propositions.add('(key1 and goal1)')
     # for xi in range(lenx):
     #     ts.atomic_propositions.add("x="+str(xi))
     # for yi in range(leny):
@@ -59,24 +61,25 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
         if si[1] == 0 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "goal")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(goal1)'})
-            ts.states.add(tsi, ap={'(goal)'})
+            ts.states.add(tsi, ap={'(goal1)','(goal)'})
+            # ts.states.add(tsi, ap={'(goal)'})
         elif si[1] == 2 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(key2)'})
+            ts.states.add(tsi, ap={'(key2)'})#, '(not goal1)'})
         elif si[1] == 8 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(goal2)'})
-            ts.states.add(tsi, ap={'(goal)'})
+            ts.states.add(tsi, ap={'(goal2)','(goal)'})#,'(not goal1)'})
+            # ts.states.add(tsi, ap={'(goal)'})
         elif si[1] == 6 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(key1)'})
+            ts.states.add(tsi, ap={'(key1)'})#,'(not goal1)'})
         # else:
-        #     ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
-        #     ts.states[tsi]['ap'] = (ap_tsi,)
+            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
+            # ts.states[tsi]['ap'] = (ap_tsi,)
+            # ts.states.add(tsi, ap={'(not goal1)'})
         for k, ts_succ_k in enumerate(ts_succ):
             # if ts.states[tsi]['ap'] == {'(goal)'}:
             #     pass
@@ -115,11 +118,11 @@ def get_BA(f, orig_guard):
         # if di['guard'] == '(1)':
         #     di['guard'] = set()
         # st()
-        if di['guard'][:2] == '((':
-
-            transition = di['guard'][1:-1]
-        else:
-            transition = di['guard']
+        # if di['guard'][:2] == '((' and di['guard'][-2:] == '))': # extract prop from extra parenthesis, that somehow appears in g
+        #     transition = di['guard'][1:-1]
+        # else:
+        #     transition = di['guard']
+        transition = di['guard']
         trans.append((ui,vi,transition))
         # st()
         # trans_orig.append((ui,vi,orig_guard[di['guard']]))
@@ -135,13 +138,39 @@ def get_BA(f, orig_guard):
 
     return symbols, g, initial, accepting, ba
 
+def get_powerset_from_trans(props, trans):
+    # st()
+    pwrset = []
+    for ui,vi,di in trans:
+        if isinstance(di,set):
+            if di != set():
+                di_clean = str(deepcopy(di).pop())
+            else:
+                di_clean = set()
+            if di_clean not in pwrset:
+                pwrset.append(di_clean)
+        else:
+            if di not in pwrset:
+                pwrset.append(di)
+
+    # connector = ' and ' # add or too
+    # pwrset = props
+    # for prop in props:
+    #     for nextprop in props:
+    #         if prop != nextprop:
+    #             if prop != 'not'+ nextprop[1:-1] and  nextprop != 'not'+ prop[1:-1]:
+    #                 pwrset.append('('+prop+connector+nextprop+')')
+    #                 pwrset.append('('+nextprop+connector+prop+')')
+    # pass
+    return pwrset
+
 def construct_BA(S, S0, Sa, props, trans):
     # st()
     ba = BuchiAutomaton(atomic_proposition_based=True) # BA must be AP based
     ba.states.add_from(S)
     ba.states.initial.add_from(S0)
     ba.states.accepting.add_from(Sa)
-    ba.atomic_propositions |= props
+    ba.atomic_propositions |= get_powerset_from_trans(props, trans)
     # ba.alphabet.math_set |= props
     # print(ba.alphabet.math_set)
     # st()
@@ -197,7 +226,7 @@ def get_tester_BA():
     '''
     orig_guard = {'(intermed)': ('x=2', 'y=0'), '(1)':'(1)'}
     # f = '[]((!goal1 U key1) || (!goal2 U key2))'
-    f = '!goal'
+    f = '!goal1 U key1 && <>goal1'
     symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
     ba.save('test_ba.pdf')
     # ba_orig.save('test_ba_orig.pdf')
@@ -298,10 +327,10 @@ def get_trans_dict(trans_list):
 
 
 def construct_virtual_product_automaton(prod_ba, ts):
-    # st()
+    st()
     virtual_prod_aut, virtual_accepting = products.ts_ba_sync_prod(ts, prod_ba)
     virtual_prod_aut.save('virtual.pdf')
-    # st()
+    st()
     return virtual_prod_aut, virtual_accepting
 
 def construct_product_automaton(ba, ts):
@@ -385,14 +414,17 @@ if __name__ == '__main__':
     test_prod, acc = products.ts_ba_sync_prod(ts_tulip, ba_tulip)
     test_prod.save('prod_tulip.pdf')
 
+    # st()
+    # Making the BA and TS compatible
+    sys_ba.atomic_propositions |= {'(goal1)','(key1)','(key2)','(goal2)'}
     # Construct the product automata for just the transition system and one BA - just to check
     check_goal, goal_acc = construct_product_automaton(sys_ba, ts) # check if it goes to goal
     check_goal.save('prod_aut_sys_and_ts.pdf')
-    st()
+    # st()
 
     # Find the product Buchi Automaton for the system and tester specs
     prod_ba = async_product_BAs(test_ba, sys_ba)
-    st()
+    # st()
 
     # Construct the virtual priduct automaton synchronous product TS x BA_prod
     virtual_prod_aut, virtual_accepting = construct_virtual_product_automaton(prod_ba, ts)
