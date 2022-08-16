@@ -115,11 +115,11 @@ def get_BA(f, orig_guard):
         # if di['guard'] == '(1)':
         #     di['guard'] = set()
         # st()
-        if di['guard'][:2] == '((':
-
-            transition = di['guard'][1:-1]
-        else:
-            transition = di['guard']
+        # if di['guard'][:2] == '((' and di['guard'][-2:] == '))': # extract prop from extra parenthesis, that somehow appears in g
+        #     transition = di['guard'][1:-1]
+        # else:
+        #     transition = di['guard']
+        transition = di['guard']
         trans.append((ui,vi,transition))
         # st()
         # trans_orig.append((ui,vi,orig_guard[di['guard']]))
@@ -135,13 +135,30 @@ def get_BA(f, orig_guard):
 
     return symbols, g, initial, accepting, ba
 
+def get_powerset_from_trans(props, trans):
+    # st()
+    pwrset = []
+    for ui,vi,di in trans:
+        pwrset.append(di)
+
+    # connector = ' and ' # add or too
+    # pwrset = props
+    # for prop in props:
+    #     for nextprop in props:
+    #         if prop != nextprop:
+    #             if prop != 'not'+ nextprop[1:-1] and  nextprop != 'not'+ prop[1:-1]:
+    #                 pwrset.append('('+prop+connector+nextprop+')')
+    #                 pwrset.append('('+nextprop+connector+prop+')')
+    # pass
+    return pwrset
+
 def construct_BA(S, S0, Sa, props, trans):
     # st()
     ba = BuchiAutomaton(atomic_proposition_based=True) # BA must be AP based
     ba.states.add_from(S)
     ba.states.initial.add_from(S0)
     ba.states.accepting.add_from(Sa)
-    ba.atomic_propositions |= props
+    ba.atomic_propositions |= get_powerset_from_trans(props, trans)
     # ba.alphabet.math_set |= props
     # print(ba.alphabet.math_set)
     # st()
@@ -197,7 +214,7 @@ def get_tester_BA():
     '''
     orig_guard = {'(intermed)': ('x=2', 'y=0'), '(1)':'(1)'}
     # f = '[]((!goal1 U key1) || (!goal2 U key2))'
-    f = '!goal'
+    f = '!goal1 U key1 && <>goal1'
     symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
     ba.save('test_ba.pdf')
     # ba_orig.save('test_ba_orig.pdf')
