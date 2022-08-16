@@ -256,7 +256,7 @@ def solve_opt(maze, src, sink, int):
     ne = len(list(edges_keys.keys())) # number of edges
 
     T = 20
-    eta = 0.1
+    eta = 1
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
     xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, edges_keys)
     Vin(c1, c2, A, b, x0, edges_keys)
