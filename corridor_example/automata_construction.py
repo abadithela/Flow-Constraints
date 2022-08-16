@@ -89,7 +89,7 @@ def get_BA(f, orig_guard):
     S0 = [s for s in S if "init" in s]
     Sa = [s for s in S if "accept" in s]
     props = ['('+s+')' for s in symbols.keys()]
-    props_orig = [orig_guard['('+s+')'] for s in symbols.keys()]
+    # props_orig = [orig_guard['('+s+')'] for s in symbols.keys()]
     # props.append(True)
     # props_orig.append(True)
     # Sigma = PowerSet(props)
@@ -100,16 +100,16 @@ def get_BA(f, orig_guard):
         #     di['guard'] = set()
         trans.append((ui,vi,di['guard']))
         # st()
-        trans_orig.append((ui,vi,orig_guard[di['guard']]))
+        # trans_orig.append((ui,vi,orig_guard[di['guard']]))
     ba = construct_BA(S, S0, Sa, props, trans)
     # print("BA successfully constructed!")
-    ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
+    # ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
     # print("BA original successfully constructed!")
     # symbols, g, initial, accepting = parser.parse(ba)
     # print(ba.states.accepting) # Insert checks
     # print(ba_orig.states.accepting)
-    assert ba.states.accepting == ba_orig.states.accepting # Verify that these are the same states
-    return symbols, g, initial, accepting, ba, ba_orig
+    # assert ba.states.accepting == ba_orig.states.accepting # Verify that these are the same states
+    return symbols, g, initial, accepting, ba
 
 def construct_BA(S, S0, Sa, props, trans):
     # st()
@@ -173,11 +173,11 @@ def get_tester_BA():
     '''
     orig_guard = {'(intermed)': ('x=2', 'y=0'), '(1)':'(1)'}
     f = '[]<>(intermed)'
-    symbols, g, initial, accepting, ba, ba_orig = get_BA(f, orig_guard) # BA conversion only for safety and progress
+    symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
     ba.save('test_ba.pdf')
-    ba_orig.save('test_ba_orig.pdf')
+    # ba_orig.save('test_ba_orig.pdf')
     print('Tester BA constucted.')
-    return ba, ba_orig
+    return ba
 
 def get_system_BA():
     '''
@@ -187,11 +187,11 @@ def get_system_BA():
     '''
     orig_guard = {'(goal)': ('x=0', 'y=0'), '(1)':'(1)'}
     f = '[]<>(goal)'
-    symbols, g, initial, accepting, ba, ba_orig = get_BA(f, orig_guard) # BA conversion only for safety and progress
+    symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
     ba.save('sys_ba.pdf')
-    ba_orig.save('sys_ba_orig.pdf')
+    # ba_orig.save('sys_ba_orig.pdf')
     print('System BA constucted.')
-    return ba, ba_orig
+    return ba
 
 def async_product_BAs(test_ba, sys_ba):
     # ba_prod = algorithms.sync_prod(test_ba, sys_ba)
@@ -351,8 +351,8 @@ if __name__ == '__main__':
     mazefile = "corridor_networkfile.txt"
     # Find the separate automata (ts, test_ba and sys_ba)
     ts, state_map = get_transition_system(mazefile)
-    test_ba, test_ba_orig = get_tester_BA()
-    sys_ba, sys_ba_orig = get_system_BA()
+    test_ba = get_tester_BA()
+    sys_ba = get_system_BA()
 
     # Check by running the TuLiP examples
     ba_tulip = ba_test()
