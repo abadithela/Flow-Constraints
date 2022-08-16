@@ -43,7 +43,10 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
     ts.actions = ['n', 'e', 's', 'w', 'stay']
     # ts.atomic_propositions = []
     ts.atomic_propositions.add('(goal)')
-    ts.atomic_propositions.add('(intermed)')
+    ts.atomic_propositions.add('(goal1)')
+    ts.atomic_propositions.add('(key1)')
+    ts.atomic_propositions.add('(goal2)')
+    ts.atomic_propositions.add('(key2)')
     # for xi in range(lenx):
     #     ts.atomic_propositions.add("x="+str(xi))
     # for yi in range(leny):
@@ -56,11 +59,21 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
         if si[1] == 0 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "goal")
             # ts.states[tsi]['ap'] = (ap_tsi,)
+            ts.states.add(tsi, ap={'(goal1)'})
             ts.states.add(tsi, ap={'(goal)'})
         elif si[1] == 2 and si[0] == 0:
             # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
             # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(intermed)'})
+            ts.states.add(tsi, ap={'(key2)'})
+        elif si[1] == 8 and si[0] == 0:
+            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
+            # ts.states[tsi]['ap'] = (ap_tsi,)
+            ts.states.add(tsi, ap={'(goal2)'})
+            ts.states.add(tsi, ap={'(goal)'})
+        elif si[1] == 6 and si[0] == 0:
+            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
+            # ts.states[tsi]['ap'] = (ap_tsi,)
+            ts.states.add(tsi, ap={'(key1)'})
         # else:
         #     ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
         #     ts.states[tsi]['ap'] = (ap_tsi,)
@@ -83,12 +96,15 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
 
 def get_BA(f, orig_guard):
     # f = '[]<>(intermed)'
+    # st()
     never_claim_f = ltl2baint.call_ltl2ba(f)
     symbols, g, initial, accepting = parser.parse(never_claim_f)
     S = list(g.nodes())
     S0 = [s for s in S if "init" in s]
     Sa = [s for s in S if "accept" in s]
-    props = ['('+s+')' for s in symbols.keys()]
+    pos_props = ['('+s+')' for s in symbols.keys()]
+    neg_props = ['(not '+s+')' for s in symbols.keys()]
+    props = pos_props + neg_props
     # props_orig = [orig_guard['('+s+')'] for s in symbols.keys()]
     # props.append(True)
     # props_orig.append(True)
@@ -98,9 +114,16 @@ def get_BA(f, orig_guard):
     for ui,vi,di in g.edges(data=True): # Reading the guarded labels
         # if di['guard'] == '(1)':
         #     di['guard'] = set()
-        trans.append((ui,vi,di['guard']))
+        # st()
+        if di['guard'][:2] == '((':
+
+            transition = di['guard'][1:-1]
+        else:
+            transition = di['guard']
+        trans.append((ui,vi,transition))
         # st()
         # trans_orig.append((ui,vi,orig_guard[di['guard']]))
+    # st()
     ba = construct_BA(S, S0, Sa, props, trans)
     # print("BA successfully constructed!")
     # ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
@@ -109,6 +132,7 @@ def get_BA(f, orig_guard):
     # print(ba.states.accepting) # Insert checks
     # print(ba_orig.states.accepting)
     # assert ba.states.accepting == ba_orig.states.accepting # Verify that these are the same states
+
     return symbols, g, initial, accepting, ba
 
 def construct_BA(S, S0, Sa, props, trans):
@@ -172,7 +196,8 @@ def get_tester_BA():
     ba_orig: BA using the system coordinates as guard
     '''
     orig_guard = {'(intermed)': ('x=2', 'y=0'), '(1)':'(1)'}
-    f = '[]<>(intermed)'
+    # f = '[]((!goal1 U key1) || (!goal2 U key2))'
+    f = '!goal'
     symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
     ba.save('test_ba.pdf')
     # ba_orig.save('test_ba_orig.pdf')
