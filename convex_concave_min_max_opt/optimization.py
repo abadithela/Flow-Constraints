@@ -15,12 +15,13 @@ def init_vars(edges_keys):
     return x,y
 
 # Definition of projection operator onto non-negative halfplane:
-def projx(x0):
+def projx(x0, ne, Aproj, bproj):
     n = len(x0)
     x = cp.Variable((n,1))
     l2_norm =  cp.sum_squares(x - x0)
     EPS_FLAG = 1e-6*np.ones((n,1))
-    constraints = [x >= np.zeros((n,1)) + EPS_FLAG]
+    t = x0[3*ne:3*ne+1]
+    constraints = [Aproj @ x >= bproj]
     prob = cp.Problem(cp.Minimize(l2_norm), constraints)
     prob.solve()
     return x.value
@@ -34,27 +35,33 @@ def gradient(xt, yt, lamt, c1, c2, Aineq, bineq):
     return grad
 
 # Gradient descent:
-def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, edges_keys):
-    for LAMBDA in np.logspace(-6,6,20):
-        xtraj[0] = x0
-        xtraj = {i:None for i in range(T)}
-        ytraj = {i:None for i in range(T)}
-        inner_obj_traj = {i:None for i in range(T-1)}
-        for t in range(1,T-1):
-            xt, yt, inner_obj_t, lamt, status = Vin(c1, c2, Aineq, bineq, xtraj[t-1], edges_keys,LAMBDA)
-            if status == "infeasible" or status == "unbounded":
-                break
-            ytraj[t-1] = yt.copy()
-            inner_obj_traj[t-1] = inner_obj_t
-            xtraj[t] = projx(xtraj[t-1] - eta*gradient(xtraj[t-1], ytraj[t-1], lamt, c1, c2, Aineq, bineq))
-        xt, yt, inner_obj_t, lam_t, status = Vin(c1, c2, Aineq, bineq, xtraj[T-1], edges_keys, LAMBDA)
-        if status == "infeasible" or status == "unbounded":
-            continue
-        ytraj[T-1] = yt.copy()
-        inner_obj_traj[T-1] = inner_obj_t
-        xtraj[T-1] = projx(xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], lamt, c1, c2, Aineq, bineq))
-        print("Found a suitable lambda!")
+def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys):
+    # for LAMBDA in np.logspace(,6,20):
+    LAMBDA = 1e3
+    xtraj = {i:None for i in range(T)}
+    xtraj[0] = x0
+    ytraj = {i:None for i in range(T)}
+    inner_obj_traj = {i:None for i in range(T-1)}
+    ne = len(list(edges_keys.keys()))
+    for t in range(1,T-1):
+        xt, yt, inner_obj_t, lamt, status = Vin(c1, c2, Aineq, bineq, xtraj[t-1], edges_keys,LAMBDA)
         pdb.set_trace()
+        if status == "infeasible" or status == "unbounded":
+            pdb.set_trace()
+            break
+        ytraj[t-1] = yt.copy()
+        inner_obj_traj[t-1] = inner_obj_t
+        xstep = xtraj[t-1] - (1.0/t)*gradient(xtraj[t-1], ytraj[t-1], lamt, c1, c2, Aineq, bineq)
+        xtraj[t] = projx(xstep, ne, Aproj, bproj)
+    xt, yt, inner_obj_t, lam_t, status = Vin(c1, c2, Aineq, bineq, xtraj[T-1], edges_keys, LAMBDA)
+    pdb.set_trace()
+    # if status == "infeasible" or status == "unbounded":
+    #     continue
+    ytraj[T-1] = yt.copy()
+    inner_obj_traj[T-1] = inner_obj_t
+    xtraj[T-1] = projx(xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], lamt, c1, c2, Aineq, bineq))
+    print("Found a suitable lambda!")
+    pdb.set_trace()
     return xtraj, ytraj
 
 def Vin_oracle(edges_keys, nodes_keys, src, sink, int, x):

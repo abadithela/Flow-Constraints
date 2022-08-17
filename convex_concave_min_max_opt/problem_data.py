@@ -51,7 +51,7 @@ def objective(edges_keys):
     # Objective function: c1.T x + c2.T y
     return c1, c2
 
-def feas_constraint(edges_keys):
+def feas_constraint(edges_keys, projection=False):
     ne = len(list(edges_keys.keys())) # number of edges
     Af1 = np.eye(ne)
     Af2 = np.eye(ne)
@@ -60,16 +60,26 @@ def feas_constraint(edges_keys):
     At = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
-    b_feas = np.zeros((4*ne,1))
-    A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros, blk_zeros))
-    A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros, blk_zeros))
-    A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, blk_zeros, Af3))
-    A_feas_t = np.hstack((blk_zeros, blk_zeros, blk_zeros, At, blk_zeros))
-    A_feas_de = np.hstack((blk_zeros, blk_zeros, Ade, blk_zeros, blk_zeros))
-    A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3, A_feas_de))
+    if projection:
+        b_feas = np.zeros((4*ne,1))
+        A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros))
+        A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros))
+        A_feas_t = np.hstack((blk_zeros, blk_zeros, blk_zeros, At))
+        A_feas_de = np.hstack((blk_zeros, blk_zeros, Ade, blk_zeros))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_de, A_feas_t))
+        assert A_feas.shape[1] == 4*ne
+    else:
+        b_feas = np.zeros((5*ne,1))
+        A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros, blk_zeros))
+        A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros, blk_zeros))
+        A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, blk_zeros, Af3))
+        A_feas_t = np.hstack((blk_zeros, blk_zeros, blk_zeros, At, blk_zeros))
+        A_feas_de = np.hstack((blk_zeros, blk_zeros, Ade, blk_zeros, blk_zeros))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_de, A_feas_t, A_feas_f3))
+        assert A_feas.shape[1] == 5*ne
 
     assert A_feas.shape[0] == b_feas.shape[0]
-    assert A_feas.shape[1] == 5*ne
+
     return A_feas, b_feas
 
 def cut_constraint(edges_keys):
@@ -109,6 +119,33 @@ def conservation_helper_function(edges_keys, nodes_keys, src, target):
                 Afeas2[k][in_ind] = -1
     return Afeas1, Afeas2
 
+def proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink):
+    ne = len(list(edges_keys.keys())) # number of edges
+    nv = len(list(nodes_keys.keys())) # number of edges
+    module_mtrx = np.zeros((nv,ne)) # One matrix for holding all conservation
+    module_vec = np.zeros((nv,1))
+
+    Afeas1_f1, Afeas2_f1 = conservation_helper_function(edges_keys, nodes_keys, src, int)
+    Afeas1_f2, Afeas2_f2 = conservation_helper_function(edges_keys, nodes_keys, int, sink)
+
+    # Constructing block matrices:
+    Acons1_f1 = np.hstack((Afeas1_f1, module_mtrx, module_mtrx, module_mtrx))
+    Acons2_f1 = np.hstack((Afeas2_f1, module_mtrx, module_mtrx, module_mtrx))
+
+    Acons1_f2 = np.hstack((module_mtrx, Afeas1_f2, module_mtrx, module_mtrx))
+    Acons2_f2 = np.hstack((module_mtrx, Afeas2_f2, module_mtrx, module_mtrx))
+
+    # Final assembly:
+    Acons1 = np.vstack((Acons1_f1, Acons1_f2))
+    Acons2 = np.vstack((Acons2_f1, Acons2_f2))
+    bcons1 = np.vstack((module_vec, module_vec))
+    bcons2 = np.vstack((module_vec, module_vec))
+    Acons = np.vstack((Acons1, Acons2))
+    bcons = np.vstack((bcons1, bcons2))
+    assert Acons.shape[0] == bcons.shape[0]
+    assert Acons.shape[1] == 4*ne
+    return Acons, bcons
+
 def conservation_constraint(nodes_keys, edges_keys, src, int, sink):
     ne = len(list(edges_keys.keys())) # number of edges
     nv = len(list(nodes_keys.keys())) # number of edges
@@ -140,7 +177,7 @@ def conservation_constraint(nodes_keys, edges_keys, src, int, sink):
     assert Acons.shape[1] == 5*ne
     return Acons, bcons
 
-def min_flow_constraint(edges_keys, src, int,sink):
+def min_flow_constraint(edges_keys, src, int,sink, projection=False):
     ne = len(list(edges_keys.keys())) # number of edges
     out_s1_edge_ind = [k for k, v in edges_keys.items() if v[0]==src]
     out_s2_edge_ind = [k for k, v in edges_keys.items() if v[0]==int]
@@ -158,16 +195,21 @@ def min_flow_constraint(edges_keys, src, int,sink):
     for k in out_s3_edge_ind:
         af3[0,k] = 1
 
-    a1 = np.hstack((af1, zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec))
-    a2 = np.hstack((zero_row_vec, af2, zero_row_vec, zero_row_vec, zero_row_vec))
-    a3 = np.hstack((zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec, af3))
-
-    bfeas = np.ones((3,1))
-    Afeas = np.vstack((a1, a2, a3))
+    if projection:
+        a1 = np.hstack((af1, zero_row_vec, zero_row_vec, zero_row_vec))
+        a2 = np.hstack((zero_row_vec, af2, zero_row_vec, zero_row_vec))
+        bfeas = np.ones((2,1))
+        Afeas = np.vstack((a1, a2))
+    else:
+        a1 = np.hstack((af1, zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec))
+        a2 = np.hstack((zero_row_vec, af2, zero_row_vec, zero_row_vec, zero_row_vec))
+        a3 = np.hstack((zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec, af3))
+        bfeas = np.ones((3,1))
+        Afeas = np.vstack((a1, a2, a3))
     assert Afeas.shape[0] == bfeas.shape[0]
     return Afeas, bfeas
 
-def capacity_constraint(edges_keys):
+def capacity_constraint(edges_keys, projection=False):
     ne = len(list(edges_keys.keys())) # number of edges
     Af1 = -1*np.eye(ne)
     Af2 = -1*np.eye(ne)
@@ -175,16 +217,23 @@ def capacity_constraint(edges_keys):
     Aot = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
-    b_feas = np.zeros((3*ne,1))
-    A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, Aot, blk_zeros))
-    A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, Aot, blk_zeros))
-    A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, Aot, Af3))
-    A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+    # x constraints
+    if projection:
+        b_feas = np.zeros((2*ne,1))
+        A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, Aot))
+        A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, Aot))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2))
+    else:
+        b_feas = np.zeros((3*ne,1))
+        A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, Aot, blk_zeros))
+        A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, Aot, blk_zeros))
+        A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, Aot, Af3))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
     assert A_feas.shape[0] == b_feas.shape[0]
     return A_feas, b_feas
 
 # Equality constraints on 1/t:
-def eq_aux_constraint(edges_keys):
+def eq_aux_constraint(edges_keys, projection=False):
     ne = len(list(edges_keys.keys())) # number of edges
     eq_block = np.array([[1,-1],[-1,1]])
     Aeq_t = np.zeros((2*ne-2, ne))
@@ -197,7 +246,10 @@ def eq_aux_constraint(edges_keys):
 
     # Organize larger matrices:
     zblock = 0*Aeq_t
-    Aeq = np.hstack((zblock, zblock, zblock, Aeq_t, zblock))
+    if projection:
+        Aeq = np.hstack((zblock, zblock, zblock, Aeq_t))
+    else:
+        Aeq = np.hstack((zblock, zblock, zblock, Aeq_t, zblock))
     assert Aeq.shape[0] == beq.shape[0]
     return Aeq, beq
 
@@ -213,6 +265,20 @@ def all_constraints(edges_keys, nodes_keys, src, int, sink):
     # b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
     A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_cut, A_flow))
     b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_cut, b_flow))
+    assert A.shape[0] == b.shape[0]
+    return A, b
+
+# Collecting projection constraints together as g(x,y) = A[x;y] - b>=0
+def proj_constraints(edges_keys, nodes_keys, src, int, sink):
+    A_feas, b_feas = feas_constraint(edges_keys, projection=True)
+    A_cap, b_cap = capacity_constraint(edges_keys, projection=True)
+    A_cons, b_cons = proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink)
+    A_eq, b_eq = eq_aux_constraint(edges_keys, projection=True)
+    A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink, projection=True)
+    # A = np.vstack((A_feas, A_cut, A_cap, A_flow, A_cons, A_eq))
+    # b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
+    A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_flow))
+    b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_flow))
     assert A.shape[0] == b.shape[0]
     return A, b
 
@@ -251,14 +317,15 @@ def solve_opt(maze, src, sink, int):
     x0, y0 = get_candidate_flows(G, edges_keys, src, int, sink)
     # pdb.set_trace()
     Aineq,bineq = all_constraints(edges_keys, nodes_keys, src, int, sink)
+    Aproj, bproj = proj_constraints(edges_keys, nodes_keys, src, int, sink)
     assert x0.shape[0] + y0.shape[0] == Aineq.shape[1]
     c1, c2 = objective(edges_keys)
     ne = len(list(edges_keys.keys())) # number of edges
 
     T = 20
-    eta = 1
+    eta = 0.1
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
-    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, edges_keys)
+    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys)
     Vin(c1, c2, A, b, x0, edges_keys)
 
 
