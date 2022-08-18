@@ -1,5 +1,5 @@
 '''
-Skeleton script to call the tulip controller for the quadruped
+Skeleton script to call the tulip controller for the quadruped.
 '''
 from ipdb import set_trace as st
 

@@ -16,6 +16,7 @@ Gridworld:
 | X0 | X1 | X2 |
 ----------------
 Auxiliary states: 'X2_lie', 'X8_jump', 'X6_stand'
+Spec: Quadruped shall reach cell X6 (goal state).
 
 """
 
