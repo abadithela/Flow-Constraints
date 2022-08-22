@@ -82,7 +82,7 @@ def feas_constraint(edges_keys, projection=False):
 
     return A_feas, b_feas
 
-def cut_constraint(edges_keys):
+def cut_constraint(edges_keys, projection=False):
     ne = len(list(edges_keys.keys())) # number of edges
     Af1 = -1*np.eye(ne)
     Af2 = -1*np.eye(ne)
@@ -91,11 +91,17 @@ def cut_constraint(edges_keys):
     Aot = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
-    b_feas = np.zeros((3*ne,1))
-    A_feas_f1= np.hstack((Af1, blk_zeros, Ade, Aot, blk_zeros))
-    A_feas_f2= np.hstack((blk_zeros, Af2, Ade, Aot, blk_zeros))
-    A_feas_f3= np.hstack((blk_zeros, blk_zeros, Ade, Aot, Af3))
-    A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+    if projection:
+        A_feas_f1= np.hstack((Af1, blk_zeros, Ade, Aot))
+        A_feas_f2= np.hstack((blk_zeros, Af2, Ade, Aot))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2))
+        b_feas = np.zeros((2*ne,1))
+    else:
+        A_feas_f1= np.hstack((Af1, blk_zeros, Ade, Aot, blk_zeros))
+        A_feas_f2= np.hstack((blk_zeros, Af2, Ade, Aot, blk_zeros))
+        A_feas_f3= np.hstack((blk_zeros, blk_zeros, Ade, Aot, Af3))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+        b_feas = np.zeros((3*ne,1))
     assert A_feas.shape[0] == b_feas.shape[0]
     return A_feas, b_feas
 
@@ -275,10 +281,11 @@ def proj_constraints(edges_keys, nodes_keys, src, int, sink):
     A_cons, b_cons = proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink)
     A_eq, b_eq = eq_aux_constraint(edges_keys, projection=True)
     A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink, projection=True)
-    # A = np.vstack((A_feas, A_cut, A_cap, A_flow, A_cons, A_eq))
-    # b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
-    A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_flow))
-    b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_flow))
+    A_cut, b_cut = cut_constraint(edges_keys, projection=True)
+    A = np.vstack((A_cap))
+    b = np.vstack((b_cap))
+    # A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_flow, A_cut))
+    # b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_flow, b_cut))
     assert A.shape[0] == b.shape[0]
     return A, b
 
@@ -323,7 +330,7 @@ def solve_opt(maze, src, sink, int):
     ne = len(list(edges_keys.keys())) # number of edges
 
     T = 20
-    eta = 0.1
+    eta = 0.01
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
     xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys)
     Vin(c1, c2, A, b, x0, edges_keys)
