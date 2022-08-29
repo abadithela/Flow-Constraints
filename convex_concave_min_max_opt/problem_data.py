@@ -12,6 +12,7 @@ import _pickle as pickle
 import os
 import networkx as nx
 from road_network.components.road_network import RoadNetwork, create_network_from_file
+from static_obstacle_maze.network import MazeNetwork
 import matplotlib.pyplot as plt
 from scipy import sparse as sp
 from optimization import Vout, Vin, Vin_oracle, max_oracle_gd, projx, gradient
@@ -209,9 +210,11 @@ def min_flow_constraint(edges_keys, src, int,sink, projection=False):
     else:
         a1 = np.hstack((af1, zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec))
         a2 = np.hstack((zero_row_vec, af2, zero_row_vec, zero_row_vec, zero_row_vec))
-        a3 = np.hstack((zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec, af3))
-        bfeas = np.ones((3,1))
-        Afeas = np.vstack((a1, a2, a3))
+        # a3 = np.hstack((zero_row_vec, zero_row_vec, zero_row_vec, zero_row_vec, af3))
+        # bfeas = np.ones((3,1))
+        # Afeas = np.vstack((a1, a2, a3))
+        bfeas = np.ones((2,1))
+        Afeas = np.vstack((a1, a2))
     assert Afeas.shape[0] == bfeas.shape[0]
     return Afeas, bfeas
 
@@ -220,21 +223,24 @@ def capacity_constraint(edges_keys, projection=False):
     Af1 = -1*np.eye(ne)
     Af2 = -1*np.eye(ne)
     Af3 = -1*np.eye(ne)
+    Ade = -1*np.eye(ne)
     Aot = np.eye(ne)
     blk_zeros = np.zeros((ne,ne))
 
     # x constraints
     if projection:
-        b_feas = np.zeros((2*ne,1))
+        b_feas = np.zeros((3*ne,1))
         A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, Aot))
         A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, Aot))
-        A_feas = np.vstack((A_feas_f1, A_feas_f2))
+        A_feas_de= np.hstack((blk_zeros, blk_zeros, Ade, Aot))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_de))
     else:
-        b_feas = np.zeros((3*ne,1))
+        b_feas = np.zeros((4*ne,1))
         A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, Aot, blk_zeros))
         A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, Aot, blk_zeros))
         A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, Aot, Af3))
-        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
+        A_feas_de= np.hstack((blk_zeros, blk_zeros, Ade, Aot, blk_zeros))
+        A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_de, A_feas_f3))
     assert A_feas.shape[0] == b_feas.shape[0]
     return A_feas, b_feas
 
@@ -242,14 +248,22 @@ def capacity_constraint(edges_keys, projection=False):
 def eq_aux_constraint(edges_keys, projection=False):
     ne = len(list(edges_keys.keys())) # number of edges
     eq_block = np.array([[1,-1],[-1,1]])
+    # Aeq_t = np.zeros((2*ne-2, ne))
+    # beq = np.zeros((2*ne-2,1))
+    # # Take care of t
+    # for k in range(ne-1):
+    #     At = np.zeros((2,ne))
+    #     At[0:2, k:k+2] = eq_block
+    #     Aeq_t[k:k+2] = At.copy()
+
     Aeq_t = np.zeros((2*ne-2, ne))
     beq = np.zeros((2*ne-2,1))
     # Take care of t
     for k in range(ne-1):
         At = np.zeros((2,ne))
         At[0:2, k:k+2] = eq_block
-        Aeq_t[k:k+2] = At.copy()
-
+        Aeq_t[2*k:2*k+2] = At.copy()
+    # pdb.set_trace()
     # Organize larger matrices:
     zblock = 0*Aeq_t
     if projection:
@@ -269,6 +283,7 @@ def all_constraints(edges_keys, nodes_keys, src, int, sink):
     A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink)
     # A = np.vstack((A_feas, A_cut, A_cap, A_flow, A_cons, A_eq))
     # b = np.vstack((b_feas, b_cut, b_cap, b_flow, b_cons, b_eq))
+    # pdb.set_trace()
     A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_cut, A_flow))
     b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_cut, b_flow))
     assert A.shape[0] == b.shape[0]
@@ -282,10 +297,10 @@ def proj_constraints(edges_keys, nodes_keys, src, int, sink):
     A_eq, b_eq = eq_aux_constraint(edges_keys, projection=True)
     A_flow, b_flow = min_flow_constraint(edges_keys, src, int, sink, projection=True)
     A_cut, b_cut = cut_constraint(edges_keys, projection=True)
-    A = np.vstack((A_cap))
-    b = np.vstack((b_cap))
-    # A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_flow, A_cut))
-    # b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_flow, b_cut))
+    # A = np.vstack((A_feas, A_cap))
+    # b = np.vstack((b_feas, b_cap))
+    A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_flow, A_cut))
+    b = np.vstack((b_feas, b_cap, b_cons, b_eq, b_flow, b_cut))
     assert A.shape[0] == b.shape[0]
     return A, b
 
@@ -317,28 +332,32 @@ def get_candidate_flows(G, edges_keys, src, int, sink):
     x0 = np.vstack((f1e_init*tfac, f2e_init*tfac, zero_cuts, t_init))
     return x0, f3e_init
 
-
+def plot_matrix(M, fn):
+    fn = os.getcwd() + "/" + fn
+    plt.matshow(M)
+    plt.show()
+    plt.savefig(fn)
 
 def solve_opt(maze, src, sink, int):
     x, y, G, nodes_keys, edges_keys = initialize(maze)
     x0, y0 = get_candidate_flows(G, edges_keys, src, int, sink)
-    # pdb.set_trace()
     Aineq,bineq = all_constraints(edges_keys, nodes_keys, src, int, sink)
     Aproj, bproj = proj_constraints(edges_keys, nodes_keys, src, int, sink)
     assert x0.shape[0] + y0.shape[0] == Aineq.shape[1]
+    # pdb.set_trace()
     c1, c2 = objective(edges_keys)
     ne = len(list(edges_keys.keys())) # number of edges
 
     T = 20
     eta = 0.01
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
-    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys)
+    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, maze=maze)
     Vin(c1, c2, A, b, x0, edges_keys)
 
 
 if __name__ == '__main__':
     # test
-    grid = "small"
+    grid = "toy"
     main_dir = os.getcwd()
     par_dir = os.path.dirname(main_dir)
     if grid == "large":
@@ -346,13 +365,21 @@ if __name__ == '__main__':
         src = (8,2)
         sink = (2,8)
         int = (5,5)
+        maze = RoadNetwork(networkfile)
 
     elif grid == "small":
         networkfile = par_dir + '/road_network/road_network.txt'
         src = (4,2)
         sink = (2,0)
         int = (2,4)
+        maze = RoadNetwork(networkfile)
 
-    maze = RoadNetwork(networkfile)
+    elif grid == "toy":
+        mazefile = par_dir + '/constrained_mcf/small_mazefile.txt'
+        src = (0,0)
+        sink = (0,2)
+        int = (2,1)
+        maze = MazeNetwork(mazefile)
+
     reg = 10
     solve_opt(maze, src, sink, int)
