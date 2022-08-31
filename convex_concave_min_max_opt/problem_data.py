@@ -15,7 +15,7 @@ from road_network.components.road_network import RoadNetwork, create_network_fro
 from static_obstacle_maze.network import MazeNetwork
 import matplotlib.pyplot as plt
 from scipy import sparse as sp
-from optimization import Vout, Vin, Vin_oracle, max_oracle_gd, projx, gradient
+from optimization import Vout, Vin, Vin_oracle, max_oracle_gd, max_oracle_pyomo, projx, gradient
 import pdb
 
 debug = False
@@ -351,8 +351,9 @@ def solve_opt(maze, src, sink, int):
     T = 20
     eta = 0.01
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
-    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, maze=maze)
-    Vin(c1, c2, A, b, x0, edges_keys)
+    xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, nodes_keys, src, sink, int, maze=maze)
+    # xtraj, ytraj = max_oracle_pyomo(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, nodes_keys, src, sink, int, maze=maze)
+    # Vin(c1, c2, A, b, x0, edges_keys)
 
 
 if __name__ == '__main__':
