@@ -52,7 +52,7 @@ def run_diagnostics(Aineq_y, bineq_sub, xtraj, ytraj):
     pass
 
 def check_constraint(xt, yt, A, b):
-    lhs = A @ np.vstack((xt,yt))
+    lhs = A @ np.vstack((xt,yt)) # A_x' x + A_y' y >= b
     ne = yt.shape[0]
     eps = 1e-2*np.ones((b.shape[0],1))
     Aineq_x = A[:, 0:4*ne]
@@ -60,63 +60,20 @@ def check_constraint(xt, yt, A, b):
     constraint = lhs >= b
     violations = [i for i, k in enumerate(constraint) if not k]
     violations_gap = [lhs[k,0]-b[k,0] for k in violations]
+
     # A[x; y+ygap] >= b. Need to solve for ygap
-    ygap = np.linalg.inv(Aineq_y.T @ Aineq_y) @ (Aineq_y.T @ (b+eps-lhs))
+    # y = (A'.A)^-1 A'.b
+    lhs_x = Aineq_x @ xt
+    bnew = b - lhs_x
+    ygap = np.linalg.inv(Aineq_y.T @ Aineq_y) @ (Aineq_y.T @ (bnew))
+    # pdb.set_trace()
     new_lhs = A @ np.vstack((xt,yt + ygap))
     new_const = new_lhs >= b
     new_viol = [i for i, k in enumerate(new_const) if not k]
     new_viol_gap = [new_lhs[k,0]-b[k,0] for k in new_viol]
-    if violations != []:
-        pdb.set_trace()
-        
-def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, maze=None):
-    # for LAMBDA in np.logspace(,6,20):
-    LAMBDA = 1
-    ne = len(list(edges_keys.keys()))
-    Aineq_x = Aineq[:, 0:4*ne]
-    Aineq_y = Aineq[:, 4*ne:]
-    plot = False
-    xtraj = {i:None for i in range(T)}
-    xtraj[0] = x0
-    ytraj = {i:None for i in range(T)}
-    inner_obj_traj = {i:None for i in range(T-1)}
-    for t in range(1,T-1):
-        # Plotting to help debug:
-        bineq_sub = bineq - Aineq_x.dot(xtraj[t-1])
-        # pdb.set_trace()
-        if plot and t>1:
-            plot_flows(xtraj[t-1], ytraj[t-2], edges_keys, maze)
-        if not pyomo_based:
-            yt, inner_obj_t, lamt, status = Vin(c1, c2, Aineq, bineq, xtraj[t-1], edges_keys,LAMBDA)
-        else:
-            yt, inner_obj_t, lamt, status = Vin_oracle()
-        if status == "infeasible" or status == "unbounded":
-            run_diagnostics(Aineq_y, bineq_sub, xtraj, ytraj)
-            pdb.set_trace()
-            break
-        else:
-            if plot and maze is not None:
-                plot_flows(xtraj[t-1], yt, edges_keys, maze)
-            # Run diagnostics:
-            check_constraint(xtraj[t-1], yt, Aineq, bineq)
-            # pdb.set_trace()
+    # if violations != []:
+    #     pdb.set_trace()
 
-        ytraj[t-1] = yt.copy()
-        inner_obj_traj[t-1] = inner_obj_t
-        xstep = xtraj[t-1] - (1.0/t)*gradient(xtraj[t-1], ytraj[t-1], lamt, c1, c2, Aineq, bineq)
-        xtraj[t] = projx(xstep, ne, Aproj, bproj)
-        check_constraint(xtraj[t], yt, Aineq, bineq)
-
-    yt, inner_obj_t, lam_t, status = Vin(c1, c2, Aineq, bineq, xtraj[T-1], edges_keys, LAMBDA)
-    pdb.set_trace()
-    # if status == "infeasible" or status == "unbounded":
-    #     continue
-    ytraj[T-1] = yt.copy()
-    inner_obj_traj[T-1] = inner_obj_t
-    xtraj[T-1] = projx(xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], lamt, c1, c2, Aineq, bineq))
-    print("Found a suitable lambda!")
-    pdb.set_trace()
-    return xtraj, ytraj
 
 def plot_flows(x,y, edges_keys, maze):
     ne = len(edges_keys.keys())
@@ -137,8 +94,30 @@ def plot_flows(x,y, edges_keys, maze):
         flow3.update({(edge):y[idx1,0]/t})
         cuts.update({(edge):x[idx_cuts,0]/t})
     plot_mcf(maze, flow1, flow2, flow3, cuts)
+
+# Max oracle pyomo based:
+def max_oracle_pyomo(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj,edges_keys,nodes_keys, src, sink, int, maze=None):
+    LAMBDA = 1
+    ne = len(list(edges_keys.keys()))
+    xtraj = {i:None for i in range(T)}
+    xtraj[0] = x0
+    ytraj = {i:None for i in range(T)}
+    inner_obj_traj = {i:None for i in range(T-1)}
+    for t in range(1,T-1):
+        yt, inner_obj_t, lamt, status = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1], LAMBDA)
+        ytraj[t-1] = yt.copy()
+        inner_obj_traj[t-1] = inner_obj_t
+        xstep = xtraj[t-1] - (1.0/t)*gradient(xtraj[t-1], ytraj[t-1], lamt, c1, c2, Aineq, bineq)
+        xtraj[t] = projx(xstep, ne, Aproj, bproj)
+    yt, inner_obj_t, lam_t, status = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[T-2],LAMBDA)
+    ytraj[T-1] = yt.copy()
+    inner_obj_traj[T-1] = inner_obj_t
+    xtraj[T-1] = projx(xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], lamt, c1, c2, Aineq, bineq))
+    print("Found a suitable lambda!")
+    return xtraj, ytraj
+
 # Gradient descent:
-def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, maze=None):
+def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nodes_keys, src, sink, int, maze=None):
     # for LAMBDA in np.logspace(,6,20):
     LAMBDA = 1
     ne = len(list(edges_keys.keys()))
@@ -153,8 +132,9 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, ma
         # Plotting to help debug:
         bineq_sub = bineq - Aineq_x.dot(xtraj[t-1])
         # pdb.set_trace()
-        if plot and t>1:
+        if plot or t>1:
             plot_flows(xtraj[t-1], ytraj[t-2], edges_keys, maze)
+            yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1],LAMBDA)
         if not pyomo_based:
             yt, inner_obj_t, lamt, status = Vin(c1, c2, Aineq, bineq, xtraj[t-1], edges_keys,LAMBDA)
         else:
@@ -187,13 +167,11 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, ma
     pdb.set_trace()
     return xtraj, ytraj
 
-def dual_variable():
-    pass
 
-def Vin_oracle(edges_keys, nodes_keys, src, sink, int, x):
-    yt, inner_obj_t, status = max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x)
-    lamt = dual_variable()
-    return x, yt, inner_obj_t, lamt, status
+def Vin_oracle(edges_keys, nodes_keys, src, sink, int, x,LAMBDA):
+    yt, lamt = max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x,LAMBDA)
+    pdb.set_trace()
+    return yt, lamt
 
 def pseudo_inv(Aineq_y):
     pseudo_inv = Aineq_y.T @ Aineq_y

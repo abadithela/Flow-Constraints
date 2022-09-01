@@ -35,16 +35,16 @@ def max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
     # Capacity constraints
     def capacity(model, i, j, k, l):
         return model.f3[i, j, k, l] <= model.t
-    model.cap3 = pyo.Constraint(model.edges, rule=capacity)
+    model.cap = pyo.Constraint(model.edges, rule=capacity)
     # st()
     # Conservation constraints
-    def conservation(model, k, l):
-        if (k,l) == sink or (k,l) == src:
+    def conservation(model, i,j, k, l):
+        if (k,l) == sink or (i,j) == src:
             return pyo.Constraint.Skip
         incoming  = sum(model.f3[i,j] for (i,j) in model.edges if j == (k,l))
         outgoing = sum(model.f3[i,j] for (i,j) in model.edges if i == (k,l))
         return incoming == outgoing
-    model.con = pyo.Constraint(model.nodes, rule=conservation)
+    model.con = pyo.Constraint(model.edges, rule=conservation)
 
     # # nothing enters the source
     def no_in_source(model, i,j,k,l):
@@ -96,7 +96,16 @@ def max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
     for (i,j),(k,l) in model.edges:
         F = 1.0/(model.t)
         f3_e.update({((i,j),(k,l)): model.f3[i,j,k,l].value*F})
-    pdb.set_trace()
+    for key in model.dual.keys():
+        constraint_name, edge_info = key.name.split("[")
+        edge_info = edge_info.split("]")
+        edge_info = edge_info[0].split(",")
+        u_edge = (float(edge_info[0]), float(edge_info[1]))
+        if constraint_name != "con":
+            v_edge = (float(edge_info[2]), float(edge_info[3]))
+            lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
+        else:
+            lamt.update({(u_edge, constraint_name): model.dual[key]})
     return f3_e, lamt
 
 # Find Lagrange dual of Linear Program:
