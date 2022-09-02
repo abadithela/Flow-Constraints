@@ -304,7 +304,7 @@ def proj_constraints(edges_keys, nodes_keys, src, int, sink):
     A_cons, b_cons, cons_names = proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink)
     A_eq, b_eq, eq_names = eq_aux_constraint(edges_keys, projection=True)
     A_cut, b_cut, cut_names = cut_constraint(edges_keys, projection=True)
-    A_flow, b_flow, flow_names = min_flow_constraint(edges_keys, src, int, sink)
+    A_flow, b_flow, flow_names = min_flow_constraint(edges_keys, src, int, sink, projection=True)
     # A = np.vstack((A_feas, A_cap))
     # b = np.vstack((b_feas, b_cap))
     A = np.vstack((A_feas, A_cap, A_cons, A_eq, A_flow, A_cut))

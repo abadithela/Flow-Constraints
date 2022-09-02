@@ -151,7 +151,7 @@ def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
 
     def set_t(model):
         return model.t == t
-    model.set_t = pyo.Constraint(model.edges, rule=set_t)
+    model.set_t = pyo.Constraint(rule=set_t)
 
     def max_flow(model):
         return model.t + LAMBDA*sum(model.f3[i,j] for (i, j) in model.edges if j == sink)
