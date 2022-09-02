@@ -5,9 +5,9 @@ import cvxpy as cp
 import pdb
 import sys
 sys.path.append('..')
-from max_flow_oracle import max_flow_oracle
+from max_flow_oracle import max_flow_oracle, max_flow_oracle_fullg
 from static_obstacle_maze.plotting import plot_mcf
-pyomo_based = False
+pyomo_based = True
 
 # Matrix variables:
 def init_vars(edges_keys):
@@ -132,13 +132,16 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nod
         # Plotting to help debug:
         bineq_sub = bineq - Aineq_x.dot(xtraj[t-1])
         # pdb.set_trace()
-        if plot or t>1:
+        if plot:
             plot_flows(xtraj[t-1], ytraj[t-2], edges_keys, maze)
-            yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1],LAMBDA)
+
         if not pyomo_based:
             yt, inner_obj_t, lamt, status = Vin(c1, c2, Aineq, bineq, xtraj[t-1], edges_keys,LAMBDA)
+            pdb.set_trace()
         else:
-            yt, inner_obj_t, lamt, status = Vin_oracle()
+            yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1],LAMBDA)
+            pdb.set_trace()
+
         if status == "infeasible" or status == "unbounded":
             run_diagnostics(Aineq_y, bineq_sub, xtraj, ytraj)
             pdb.set_trace()
@@ -169,7 +172,7 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nod
 
 
 def Vin_oracle(edges_keys, nodes_keys, src, sink, int, x,LAMBDA):
-    yt, lamt = max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x,LAMBDA)
+    yt, lamt = max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x,LAMBDA)
     pdb.set_trace()
     return yt, lamt
 

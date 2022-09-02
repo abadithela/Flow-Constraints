@@ -108,6 +108,192 @@ def max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
             lamt.update({(u_edge, constraint_name): model.dual[key]})
     return f3_e, lamt
 
+# Pyomo max flow oracle:
+def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
+    edges = list(edges_keys.values())
+    nodes = list(nodes_keys.values())
+    ne = len(list(edges_keys.keys()))
+    model = pyo.ConcreteModel()
+    # st()
+    model.nodes = nodes
+    model.edges = edges
+    model.t = pyo.Var(within=pyo.NonNegativeReals)
+    t = x[3*ne:3*ne+1][0,0] # pick one t
+    d_e = x[2*ne:3*ne]
+    f1 = x[0:ne]
+    f2 = x[ne:2*ne]
+    model.d_e = pyo.Var(model.edges, within=pyo.NonNegativeReals)
+    model.f1 = pyo.Var(model.edges, within=pyo.NonNegativeReals)
+    model.f2 = pyo.Var(model.edges, within=pyo.NonNegativeReals)
+    for k, edge in edges_keys.items():
+        model.d_e[edge[0], edge[1]] = d_e[k,0]
+        model.f1[edge[0], edge[1]] = f1[k,0]
+        model.f2[edge[0], edge[1]] = f2[k,0]
+
+    model.f3 = pyo.Var(model.edges, within=pyo.NonNegativeReals)
+    model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT_EXPORT)
+
+    # Equality constraints:
+    def set_f1(model, i, j, k, l):
+        idx = list(edges_keys.keys())[list(edges_keys.values()).index(((i,j),(k,l)))]
+        return model.f1[(i, j), (k, l)] == f1[idx,0]
+    model.set_f1 = pyo.Constraint(model.edges, rule=set_f1)
+
+    def set_f2(model, i, j, k, l):
+        idx = list(edges_keys.keys())[list(edges_keys.values()).index(((i,j),(k,l)))]
+        return model.f2[(i, j), (k, l)] == f2[idx,0]
+    model.set_f2 = pyo.Constraint(model.edges, rule=set_f2)
+
+    def set_de(model, i, j, k, l):
+        idx = list(edges_keys.keys())[list(edges_keys.values()).index(((i,j),(k,l)))]
+        return model.d_e[(i, j), (k, l)] == d_e[idx,0]
+    model.set_de = pyo.Constraint(model.edges, rule=set_de)
+
+    def set_t(model):
+        return model.t == t
+    model.set_t = pyo.Constraint(model.edges, rule=set_t)
+
+    def max_flow(model):
+        return model.t + LAMBDA*sum(model.f3[i,j] for (i, j) in model.edges if j == sink)
+    model.o = pyo.Objective(rule=max_flow, sense=pyo.maximize)
+
+    # Capacity constraints
+    def capacity1(model, i, j, k, l):
+        return model.f1[(i, j), (k, l)] <= model.t
+    model.cap1 = pyo.Constraint(model.edges, rule=capacity1)
+
+    def capacity2(model, i, j, k, l):
+        return model.f2[(i, j), (k, l)] <= model.t
+    model.cap2 = pyo.Constraint(model.edges, rule=capacity2)
+
+    def capacity3(model, i, j, k, l):
+        return model.f3[(i, j), (k, l)] <= model.t
+    model.cap3 = pyo.Constraint(model.edges, rule=capacity3)
+
+    # Conservation constraints
+    def conservation1(model, k, l):
+        if (k,l) == int or (k,l) == src:
+            return pyo.Constraint.Skip
+        incoming  = sum(model.f1[i,j] for (i,j) in model.edges if j == (k,l))
+        outgoing = sum(model.f1[i,j] for (i,j) in model.edges if i == (k,l))
+        return incoming == outgoing
+    model.con1 = pyo.Constraint(model.nodes, rule=conservation1)
+
+    def conservation2(model, k, l):
+        if (k,l) == int or (k,l) == sink:
+            return pyo.Constraint.Skip
+        incoming  = sum(model.f2[i,j] for (i,j) in model.edges if j == (k,l))
+        outgoing = sum(model.f2[i,j] for (i,j) in model.edges if i == (k,l))
+        return incoming == outgoing
+    model.con2 = pyo.Constraint(model.nodes, rule=conservation2)
+
+    def conservation3(model, k, l):
+        if (k,l) == src or (k,l) == sink:
+            return pyo.Constraint.Skip
+        incoming  = sum(model.f3[i,j] for (i,j) in model.edges if j == (k,l))
+        outgoing = sum(model.f3[i,j] for (i,j) in model.edges if i == (k,l))
+        return incoming == outgoing
+    model.con3 = pyo.Constraint(model.nodes, rule=conservation3)
+
+    # # nothing enters the source
+    def no_in_source1(model, i,j,k,l):
+        if (k,l) == src:
+            return model.f1[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_in_source1 = pyo.Constraint(model.edges, rule=no_in_source1)
+
+    def no_in_source2(model, i,j,k,l):
+        if (k,l) == int:
+            return model.f2[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_in_source2 = pyo.Constraint(model.edges, rule=no_in_source2)
+
+    def no_in_source3(model, i,j,k,l):
+        if (k,l) == src:
+            return model.f3[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_in_source3 = pyo.Constraint(model.edges, rule=no_in_source3)
+
+    # nothing leaves sink
+    def no_out_sink1(model, i,j,k,l):
+        if (i,j) == int:
+            return model.f1[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_out_sink1 = pyo.Constraint(model.edges, rule=no_out_sink1)
+
+    def no_out_sink2(model, i,j,k,l):
+        if (i,j) == sink:
+            return model.f2[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_out_sink2 = pyo.Constraint(model.edges, rule=no_out_sink2)
+
+    def no_out_sink3(model, i,j,k,l):
+        if (i,j) == sink:
+            return model.f3[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_out_sink3 = pyo.Constraint(model.edges, rule=no_out_sink3)
+
+    # nothing enters the intermediate or leaves the intermediate
+    def no_in_interm(model, i,j,k,l):
+        if (k,l) == int:
+            return model.f3[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_in_interm = pyo.Constraint(model.edges, rule=no_in_interm)
+
+    def no_out_interm(model, i,j,k,l):
+        if (i,j) == int:
+            return model.f3[(i,j),(k,l)] == 0
+        else:
+            return pyo.Constraint.Skip
+    model.no_out_interm = pyo.Constraint(model.edges, rule=no_out_interm)
+
+    def cut_cons1(model, i, j, k, l):
+        return model.f1[(i,j),(k,l)] + model.d_e[(i,j),(k,l)]<= model.t
+    model.cut_cons1 = pyo.Constraint(model.edges, rule=cut_cons1)
+
+    def cut_cons2(model, i, j, k, l):
+        return model.f2[(i,j),(k,l)] + model.d_e[(i,j),(k,l)]<= model.t
+    model.cut_cons2 = pyo.Constraint(model.edges, rule=cut_cons2)
+
+    def cut_cons3(model, i, j, k, l):
+        return model.f3[(i,j),(k,l)] + model.d_e[(i,j),(k,l)]<= model.t
+    model.cut_cons3 = pyo.Constraint(model.edges, rule=cut_cons3)
+
+    print(" ==== Successfully added objective and constraints! ==== ")
+    model.pprint()
+
+    with Solver('glpk') as solver:
+        results = solver.solve(model)
+
+    model.pprint()
+    print("Solution found!")
+    # st()
+    f3_e = dict()
+    lamt = dict()
+    d_e = dict()
+    F = 0
+    for (i,j),(k,l) in model.edges:
+        F = 1.0/(model.t)
+        f3_e.update({((i,j),(k,l)): model.f3[i,j,k,l].value*F})
+    for key in model.dual.keys():
+        constraint_name, edge_info = key.name.split("[")
+        edge_info = edge_info.split("]")
+        edge_info = edge_info[0].split(",")
+        u_edge = (float(edge_info[0]), float(edge_info[1]))
+        if constraint_name != "con":
+            v_edge = (float(edge_info[2]), float(edge_info[3]))
+            lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
+        else:
+            lamt.update({(u_edge, constraint_name): model.dual[key]})
+    return f3_e, lamt
+
 # Find Lagrange dual of Linear Program:
 # Ignore below; see the code above
 # rEF: page 225 of Convex Optimization by Boyd and Vandenberghe
