@@ -3,6 +3,7 @@
 # TO Do (11/8/22)
 # 1. Check if max oracle corresponds to the right Pyomo code
 # 2. Verify every step of the max oracle algorithm and see if it checks out.
+# Need to fix problem data
 import sys
 sys.path.append('..')
 import numpy as np
@@ -52,6 +53,20 @@ def objective(edges_keys):
     # Objective function: c1.T x + c2.T y
     return c1, c2
 
+def populate_constraint_names(name_list, edges_keys=None, nodes_keys=None):
+    constraint_names = []
+    if edges_keys is not None:
+        for k, edge in edges_keys.items():
+            for name in name_list:
+                edge_str = str(edge[0][0])+","+str(edge[0][1])+","+str(edge[1][0])+","+str(edge[1][1])
+                constraint_names.extend([name+"["+edge_str+"]"])
+    if nodes_keys is not None:
+        for k, node in nodes_keys.items():
+            for name in name_list:
+                node_str = str(node[0])+","+str(node[1])
+                constraint_names.extend([name+"["+node_str+"]"])
+    return constraint_names
+
 def feas_constraint(edges_keys, projection=False):
     feas_names = []
     ne = len(list(edges_keys.keys())) # number of edges
@@ -63,6 +78,7 @@ def feas_constraint(edges_keys, projection=False):
     blk_zeros = np.zeros((ne,ne))
 
     if projection:
+        feas_constraints_names = ["feas1", "feas2", "feas_t", "feas_de"]
         b_feas = np.zeros((4*ne,1))
         A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros))
         A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros))
@@ -72,6 +88,7 @@ def feas_constraint(edges_keys, projection=False):
         assert A_feas.shape[1] == 4*ne
     else:
         b_feas = np.zeros((5*ne,1))
+        feas_constraints_names = ["feas1", "feas2", "feas_t", "feas_de", "feas3"]
         A_feas_f1= np.hstack((Af1, blk_zeros, blk_zeros, blk_zeros, blk_zeros))
         A_feas_f2= np.hstack((blk_zeros, Af2, blk_zeros, blk_zeros, blk_zeros))
         A_feas_f3= np.hstack((blk_zeros, blk_zeros, blk_zeros, blk_zeros, Af3))
@@ -79,7 +96,7 @@ def feas_constraint(edges_keys, projection=False):
         A_feas_de = np.hstack((blk_zeros, blk_zeros, Ade, blk_zeros, blk_zeros))
         A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_de, A_feas_t, A_feas_f3))
         assert A_feas.shape[1] == 5*ne
-
+    feas_names = populate_constraint_names(feas_constraints_names, edges_keys=edges_keys)
     assert A_feas.shape[0] == b_feas.shape[0]
 
     return A_feas, b_feas, feas_names
@@ -95,27 +112,34 @@ def cut_constraint(edges_keys, projection=False):
     blk_zeros = np.zeros((ne,ne))
 
     if projection:
+        cut_constraints_names = ["cut_cons1", "cut_cons2"]
         A_feas_f1= np.hstack((Af1, blk_zeros, Ade, Aot))
         A_feas_f2= np.hstack((blk_zeros, Af2, Ade, Aot))
         A_feas = np.vstack((A_feas_f1, A_feas_f2))
         b_feas = np.zeros((2*ne,1))
     else:
+        cut_constraints_names = ["cut_cons1", "cut_cons2", "cut_cons3"]
         A_feas_f1= np.hstack((Af1, blk_zeros, Ade, Aot, blk_zeros))
         A_feas_f2= np.hstack((blk_zeros, Af2, Ade, Aot, blk_zeros))
         A_feas_f3= np.hstack((blk_zeros, blk_zeros, Ade, Aot, Af3))
         A_feas = np.vstack((A_feas_f1, A_feas_f2, A_feas_f3))
         b_feas = np.zeros((3*ne,1))
+    cut_names = populate_constraint_names(cut_constraints_names, edges_keys=edges_keys)
+
     assert A_feas.shape[0] == b_feas.shape[0]
     return A_feas, b_feas, cut_names
 
-def conservation_helper_function(edges_keys, nodes_keys, src, target):
+def conservation_helper_function(edges_keys, nodes_keys, start, target, con_names):
     ne = len(list(edges_keys.keys())) # number of edges
     nv = len(list(nodes_keys.keys())) # number of edges
     module_mtrx = np.zeros((nv,ne)) # One matrix for holding all conservation terms
     Afeas1 = module_mtrx.copy()
     Afeas2 = module_mtrx.copy()
+
+    con_f1 = []
+    con_f2 = []
     for k,node in nodes_keys.items():
-        if node not in {src, target}:
+        if node not in {start, target}:
         # Afeas1: sum_i f^i(u,v) >= sum_i f^i(v,u)
         # Afeas2: sum_i f^i(u,v) <= sum_i f^i(v,u)
             out_node_edge_ind = [k for k, v in edges_keys.items() if v[0]==node]
@@ -126,17 +150,18 @@ def conservation_helper_function(edges_keys, nodes_keys, src, target):
             for in_ind in in_node_edge_ind:
                 Afeas1[k][in_ind] = 1
                 Afeas2[k][in_ind] = -1
-    return Afeas1, Afeas2
+    con_f1 = populate_constraint_names(con_names, edges_keys=None, nodes_keys=nodes_keys)
+    con_f2 = populate_constraint_names(con_names, edges_keys=None, nodes_keys=nodes_keys)
+    return Afeas1, Afeas2, con_f1, con_f2
 
 def proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink):
-    cons_names = []
     ne = len(list(edges_keys.keys())) # number of edges
     nv = len(list(nodes_keys.keys())) # number of edges
     module_mtrx = np.zeros((nv,ne)) # One matrix for holding all conservation
     module_vec = np.zeros((nv,1))
 
-    Afeas1_f1, Afeas2_f1 = conservation_helper_function(edges_keys, nodes_keys, src, int)
-    Afeas1_f2, Afeas2_f2 = conservation_helper_function(edges_keys, nodes_keys, int, sink)
+    Afeas1_f1, Afeas2_f1, con1_f1, con2_f1 = conservation_helper_function(edges_keys, nodes_keys, src, int, ["con1"])
+    Afeas1_f2, Afeas2_f2, con1_f2, con2_f2 = conservation_helper_function(edges_keys, nodes_keys, int, sink, ["con2"])
 
     # Constructing block matrices:
     Acons1_f1 = np.hstack((Afeas1_f1, module_mtrx, module_mtrx, module_mtrx))
@@ -146,6 +171,12 @@ def proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink):
     Acons2_f2 = np.hstack((module_mtrx, Afeas2_f2, module_mtrx, module_mtrx))
 
     # Final assembly:
+    cons_names = []
+    cons_names.extend(con1_f1)
+    cons_names.extend(con2_f1)
+    cons_names.extend(con1_f2)
+    cons_names.extend(con2_f2)
+
     Acons1 = np.vstack((Acons1_f1, Acons1_f2))
     Acons2 = np.vstack((Acons2_f1, Acons2_f2))
     bcons1 = np.vstack((module_vec, module_vec))
@@ -163,9 +194,9 @@ def conservation_constraint(nodes_keys, edges_keys, src, int, sink):
     module_mtrx = np.zeros((nv,ne)) # One matrix for holding all conservation
     module_vec = np.zeros((nv,1))
 
-    Afeas1_f1, Afeas2_f1 = conservation_helper_function(edges_keys, nodes_keys, src, int)
-    Afeas1_f2, Afeas2_f2 = conservation_helper_function(edges_keys, nodes_keys, int, sink)
-    Afeas1_f3, Afeas2_f3 = conservation_helper_function(edges_keys, nodes_keys, src, sink)
+    Afeas1_f1, Afeas2_f1, con1_f1, con2_f1 = conservation_helper_function(edges_keys, nodes_keys, src, int,["con1"])
+    Afeas1_f2, Afeas2_f2, con1_f2, con2_f2 = conservation_helper_function(edges_keys, nodes_keys, int, sink, ["con2"])
+    Afeas1_f3, Afeas2_f3, con1_f3, con2_f3= conservation_helper_function(edges_keys, nodes_keys, src, sink, ["con3"])
 
     # Constructing block matrices:
     Acons1_f1 = np.hstack((Afeas1_f1, module_mtrx, module_mtrx, module_mtrx, module_mtrx))
@@ -178,6 +209,13 @@ def conservation_constraint(nodes_keys, edges_keys, src, int, sink):
     Acons2_f3 = np.hstack((module_mtrx, module_mtrx, module_mtrx, module_mtrx, Afeas2_f3))
 
     # Final assembly:
+    cons_names.extend(con1_f1)
+    cons_names.extend(con2_f1)
+    cons_names.extend(con1_f2)
+    cons_names.extend(con2_f2)
+    cons_names.extend(con1_f3)
+    cons_names.extend(con2_f3)
+
     Acons1 = np.vstack((Acons1_f1, Acons1_f2, Acons1_f3))
     Acons2 = np.vstack((Acons2_f1, Acons2_f2, Acons2_f3))
     bcons1 = np.vstack((module_vec, module_vec, module_vec))

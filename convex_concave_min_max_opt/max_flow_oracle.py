@@ -170,6 +170,10 @@ def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
         return model.f3[(i, j), (k, l)] <= model.t
     model.cap3 = pyo.Constraint(model.edges, rule=capacity3)
 
+    def capacity_de(model, i, j, k, l):
+        return model.d_e[(i, j), (k, l)] <= model.t
+    model.capd_e = pyo.Constraint(model.edges, rule=capacity_de)
+
     # Conservation constraints
     def conservation1(model, k, l):
         if (k,l) == int or (k,l) == src:
@@ -266,6 +270,17 @@ def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
         return model.f3[(i,j),(k,l)] + model.d_e[(i,j),(k,l)]<= model.t
     model.cut_cons3 = pyo.Constraint(model.edges, rule=cut_cons3)
 
+    # Add min flow constraint:
+    def min_flow1(model):
+        flow1 = sum(model.f1[i,j] for (i,j) in model.edges if i == src)
+        return flow1 >= 1
+    model.min_flow1 = pyo.Constraint(rule=min_flow1)
+
+    def min_flow2(model):
+        flow2 = sum(model.f2[i,j] for (i,j) in model.edges if i == int)
+        return flow2 >= 1
+    model.min_flow2 = pyo.Constraint(rule=min_flow2)
+
     print(" ==== Successfully added objective and constraints! ==== ")
     model.pprint()
 
@@ -283,15 +298,18 @@ def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
         F = 1.0/(model.t)
         f3_e.update({((i,j),(k,l)): model.f3[i,j,k,l].value*F})
     for key in model.dual.keys():
-        constraint_name, edge_info = key.name.split("[")
-        edge_info = edge_info.split("]")
-        edge_info = edge_info[0].split(",")
-        u_edge = (float(edge_info[0]), float(edge_info[1]))
-        if constraint_name != "con":
-            v_edge = (float(edge_info[2]), float(edge_info[3]))
-            lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
+        if key.name != "set_t":
+            constraint_name, edge_info = key.name.split("[")
+            edge_info = edge_info.split("]")
+            edge_info = edge_info[0].split(",")
+            u_edge = (float(edge_info[0]), float(edge_info[1]))
+            if constraint_name not in ["con1", "con2", "con3"]:
+                v_edge = (float(edge_info[2]), float(edge_info[3]))
+                lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
+            else:
+                lamt.update({(u_edge, constraint_name): model.dual[key]})
         else:
-            lamt.update({(u_edge, constraint_name): model.dual[key]})
+            lamt.update({(key.name): model.dual[key]})
     return f3_e, lamt
 
 # Find Lagrange dual of Linear Program:
