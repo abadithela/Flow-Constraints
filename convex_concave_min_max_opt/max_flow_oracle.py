@@ -295,21 +295,28 @@ def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
     d_e = dict()
     F = 0
     for (i,j),(k,l) in model.edges:
-        F = 1.0/(model.t)
+        F = 1.0/(model.t.value)
         f3_e.update({((i,j),(k,l)): model.f3[i,j,k,l].value*F})
+
+    # for key in model.dual.keys():
+    #     if key.name not in ["set_t", "min_flow1", "min_flow2"]:
+    #         try:
+    #             constraint_name, edge_info = key.name.split("[")
+    #             edge_info = edge_info.split("]")
+    #             edge_info = edge_info[0].split(",")
+    #         except:
+    #             pdb.set_trace()
+    #         u_edge = (float(edge_info[0]), float(edge_info[1]))
+    #         if constraint_name not in ["con1", "con2", "con3"]:
+    #             v_edge = (float(edge_info[2]), float(edge_info[3]))
+    #             lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
+    #         else:
+    #             lamt.update({(u_edge, constraint_name): model.dual[key]})
+    #     else:
+    #         lamt.update({key.name: model.dual[key]})
+
     for key in model.dual.keys():
-        if key.name != "set_t":
-            constraint_name, edge_info = key.name.split("[")
-            edge_info = edge_info.split("]")
-            edge_info = edge_info[0].split(",")
-            u_edge = (float(edge_info[0]), float(edge_info[1]))
-            if constraint_name not in ["con1", "con2", "con3"]:
-                v_edge = (float(edge_info[2]), float(edge_info[3]))
-                lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
-            else:
-                lamt.update({(u_edge, constraint_name): model.dual[key]})
-        else:
-            lamt.update({(key.name): model.dual[key]})
+        lamt.update({key.name: model.dual[key]})
     return f3_e, lamt
 
 # Find Lagrange dual of Linear Program:
