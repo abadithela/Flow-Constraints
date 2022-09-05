@@ -56,7 +56,7 @@ def solve_bilevel(maze, lam2=1e6):
     model.L.nodes = model.nodes
     model.L.f3 = pyo.Var(model.L.edges, within=pyo.NonNegativeReals) # Flow 3 (from s to t not through i)
 
-    # Upper leel Objective
+    # Upper level Objective
     # Objective - minimize 1/F + lambda*f_3/F
     def flow_cut_gap(model):
         lam = 10
@@ -267,10 +267,6 @@ def solve_bilevel(maze, lam2=1e6):
     # for key in d_e.items():
     #     if d_e[key][-1] >= 0.5:
     #         print('Edge {} cut'.format(key))
-
-
-
-
 
 if __name__ == '__main__':
     grid = "small"
