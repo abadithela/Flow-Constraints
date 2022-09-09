@@ -1,5 +1,7 @@
 from ipdb import set_trace as st
 from copy import deepcopy
+from find_constraints import find_cuts
+
 
 class GridWorld:
     def __init__(self, maze, agent):
@@ -9,6 +11,8 @@ class GridWorld:
         self.timestep = 0
         self.trace = []
         self.replanned = False
+        self.G, self.state_map, self.node_dict, self.inv_node_dict, self.init, self.cuts = find_cuts()
+        self.agent_in_node_x = self.init[0]
 
     def print_gridworld(self):
         key_y_old = []
@@ -32,7 +36,12 @@ class GridWorld:
         printline = self.maze.map[key]
 
     def agent_take_step(self):
+        # st()
+        succ = self.G[self.agent_in_node_x]
         self.agent.agent_move()
+        for node in succ:
+            if self.state_map[self.node_dict[node][0]] == (self.agent.y,self.agent.x):
+                self.agent_in_node_x = node
         # st()
         if (self.agent.y,self.agent.x) == self.maze.key1:
             self.maze.goal1_unlocked = True
@@ -45,6 +54,17 @@ class GridWorld:
         #         self.agent.step_n()
         # else:
         #     self.agent.step_n()
+
+    def test_strategy(self):
+        if not self.replanned:
+            for cut in self.cuts:
+                if self.agent_in_node_x == cut[0]:
+                    self.drop_obstacle(self.state_map[self.node_dict[cut[1]][0]])
+                    print('Obstacle placed!')
+                    self.agent.controller = self.agent.find_controller(self.maze)
+                    self.agent.state = 0
+                    self.replanned = True
+
 
     def example_test_strategy(self):
         if not self.replanned:
