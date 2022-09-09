@@ -46,19 +46,19 @@ def draw_maze(orig_maze, merge = False):
                     # road_tiles.append(tile)
                 elif i == 0 and k == 8:
                     # st()
-                    if orig_maze.goal2_unlocked:
-                        tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='#dc267f', alpha=0.3)
-                    else:
-                        tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='gray', alpha=0.3)
+                    # if orig_maze.goal2_unlocked:
+                    tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='#dc267f', alpha=0.3)
+                    # else:
+                    #     tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='gray', alpha=0.3)
 
                 elif i == 0 and k == 6:
                     tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='#648fff', alpha=0.3)
                 elif i == 0 and k == 0:
                     # st()
-                    if orig_maze.goal1_unlocked:
-                        tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='#648fff', alpha=0.3)
-                    else:
-                        tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='gray', alpha=0.3)
+                    # if orig_maze.goal1_unlocked:
+                    tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='#648fff', alpha=0.3)
+                    # else:
+                    #     tile = patches.Rectangle((z_tiles[k],x_tiles[i]),TILESIZE,TILESIZE,linewidth=1,facecolor='gray', alpha=0.3)
 
                 else:
                     # ax.add_patch(Rectangle((x, y), w, h, fill=True, color='black', alpha=.5))

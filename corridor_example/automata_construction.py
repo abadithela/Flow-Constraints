@@ -31,8 +31,26 @@ from copy import deepcopy
 # build parser once only
 parser = ltl2baint.Parser()
 
-def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
-    # st()
+class GraphData:
+    def __init__(self, nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init):
+        self.nodes = nodes
+        self.edges = edges
+        self.node_dict = node_dict
+        self.inv_node_dict = inv_node_dict
+        self.acc_sys = acc_sys
+        self.acc_test = acc_test
+        self.init = init
+        self.graph = self.setup_graph(nodes, edges)
+
+    def setup_graph(self, nodes, edges):
+        G = nx.DiGraph()
+        G.add_nodes_from(nodes)
+        G.add_edges_from(edges)
+        return G
+
+
+def convert_network_to_FTS_for_system(G, states, next_state_dict, init, lenx, leny):
+    # TS T that only includes system APs such that tulip can create the product of B_sys x T
     ts = transys.FiniteTransitionSystem()
     ts_states = ["s"+str(k) for k in range(len(states))]
     init_idx = [k for k in range(len(states)) if states[k]==init]
@@ -41,50 +59,56 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
     ts.states.initial.add(ts_states[init_idx[0]])
     ts.sys_actions.add_from({'e', 'w', 'stay', ''} )
     ts.actions = ['n', 'e', 's', 'w', 'stay']
-    # ts.atomic_propositions = []
-    ts.atomic_propositions.add('(goal1)')
-    # ts.atomic_propositions.add('(not goal1)')
-    ts.atomic_propositions.add('(key1)')
-    ts.atomic_propositions.add('(goal2)')
-    ts.atomic_propositions.add('(key2)')
     ts.atomic_propositions.add('(goal)')
-    # ts.atomic_propositions.add('(key1 and goal1)')
-    # for xi in range(lenx):
-    #     ts.atomic_propositions.add("x="+str(xi))
-    # for yi in range(leny):
-    #     ts.atomic_propositions.add("y="+str(yi))
+
     for i, si in enumerate(states):
         successors = next_state_dict[si]
         successor_idx = [states.index(succ) for succ in successors]
         tsi = ts_states[i]
         ts_succ = [ts_states[k] for k in successor_idx]
         if si[1] == 0 and si[0] == 0:
-            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "goal")
-            # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(goal1)','(goal)'})
-            # ts.states.add(tsi, ap={'(goal)'})
-        elif si[1] == 2 and si[0] == 0:
-            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
-            # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(key2)'})#, '(not goal1)'})
+            ts.states.add(tsi, ap={'(goal)'})
         elif si[1] == 8 and si[0] == 0:
-            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
-            # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(goal2)','(goal)'})#,'(not goal1)'})
-            # ts.states.add(tsi, ap={'(goal)'})
-        elif si[1] == 6 and si[0] == 0:
-            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]), "intermed")
-            # ts.states[tsi]['ap'] = (ap_tsi,)
-            ts.states.add(tsi, ap={'(key1)'})#,'(not goal1)'})
-        # else:
-            # ap_tsi = ("x="+str(si[1]), "y="+str(si[0]))
-            # ts.states[tsi]['ap'] = (ap_tsi,)
-            # ts.states.add(tsi, ap={'(not goal1)'})
+            ts.states.add(tsi, ap={'(goal)'})#,'(not goal1)'})
         for k, ts_succ_k in enumerate(ts_succ):
-            # if ts.states[tsi]['ap'] == {'(goal)'}:
-            #     pass
-            #     # ts.transitions.add(tsi, tsi)
-            # else:
+            succ = successors[k]
+            if succ[0] == si[0] and succ[1] == si[1]+1:
+                act = 'e'
+            elif succ[0] == si[0] and succ[1] == si[1]-1:
+                act = 'w'
+            elif succ[0] == si[0] and succ[1] == si[1]:
+                act = 'stay'
+            ts.transitions.add(tsi, ts_succ_k)#, sys_actions=act)
+    ts.save('ts_sys.pdf')
+    return ts, state_map
+
+def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
+    # TS that includes system and tester APs
+    ts = transys.FiniteTransitionSystem()
+    ts_states = ["s"+str(k) for k in range(len(states))]
+    init_idx = [k for k in range(len(states)) if states[k]==init]
+    state_map = {ts_states[i]: states[i] for i in range(len(states))}
+    ts.states.add_from(ts_states) # Add states
+    ts.states.initial.add(ts_states[init_idx[0]])
+    ts.sys_actions.add_from({'e', 'w', 'stay', ''} )
+    ts.actions = ['n', 'e', 's', 'w', 'stay']
+    ts.atomic_propositions.add('(goal)')
+    ts.atomic_propositions.add('(key1)')
+    ts.atomic_propositions.add('(key2)')
+    for i, si in enumerate(states):
+        successors = next_state_dict[si]
+        successor_idx = [states.index(succ) for succ in successors]
+        tsi = ts_states[i]
+        ts_succ = [ts_states[k] for k in successor_idx]
+        if si[1] == 0 and si[0] == 0:
+            ts.states.add(tsi, ap={'(goal)'})
+        elif si[1] == 2 and si[0] == 0:
+            ts.states.add(tsi, ap={'(key2)'})
+        elif si[1] == 8 and si[0] == 0:
+            ts.states.add(tsi, ap={'(goal)'})
+        elif si[1] == 6 and si[0] == 0:
+            ts.states.add(tsi, ap={'(key1)'})
+        for k, ts_succ_k in enumerate(ts_succ):
             succ = successors[k]
             if succ[0] == si[0] and succ[1] == si[1]+1:
                 act = 'e'
@@ -94,10 +118,28 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
                 act = 'stay'
             ts.transitions.add(tsi, ts_succ_k)#, sys_actions=act)
     ts.save('ts.pdf')
-    # st()
     return ts, state_map
 
-def get_BA(f, orig_guard):
+def get_BA(f, orig_guard = None):
+    never_claim_f = ltl2baint.call_ltl2ba(f)
+    symbols, g, initial, accepting = parser.parse(never_claim_f)
+    S = list(g.nodes())
+    S0 = [s for s in S if "init" in s]
+    Sa = [s for s in S if "accept" in s]
+    pos_props = ['('+s+')' for s in symbols.keys()]
+    neg_props = ['(not '+s+')' for s in symbols.keys()]
+    props = pos_props + neg_props
+    trans = []
+    trans_orig = []
+    for ui,vi,di in g.edges(data=True): # Reading the guarded labels
+        transition = di['guard']
+        trans.append((ui,vi,transition))
+
+    ba = construct_BA(S, S0, Sa, props, trans)
+
+    return symbols, g, initial, accepting, ba
+
+def prepare_BA(f):
     # f = '[]<>(intermed)'
     # st()
     never_claim_f = ltl2baint.call_ltl2ba(f)
@@ -108,35 +150,18 @@ def get_BA(f, orig_guard):
     pos_props = ['('+s+')' for s in symbols.keys()]
     neg_props = ['(not '+s+')' for s in symbols.keys()]
     props = pos_props + neg_props
-    # props_orig = [orig_guard['('+s+')'] for s in symbols.keys()]
-    # props.append(True)
-    # props_orig.append(True)
-    # Sigma = PowerSet(props)
     trans = []
     trans_orig = []
     for ui,vi,di in g.edges(data=True): # Reading the guarded labels
-        # if di['guard'] == '(1)':
-        #     di['guard'] = set()
-        # st()
-        # if di['guard'][:2] == '((' and di['guard'][-2:] == '))': # extract prop from extra parenthesis, that somehow appears in g
-        #     transition = di['guard'][1:-1]
-        # else:
-        #     transition = di['guard']
         transition = di['guard']
         trans.append((ui,vi,transition))
-        # st()
-        # trans_orig.append((ui,vi,orig_guard[di['guard']]))
-    # st()
-    ba = construct_BA(S, S0, Sa, props, trans)
-    # print("BA successfully constructed!")
-    # ba_orig = construct_BA(S, S0, Sa, props_orig, trans_orig)
-    # print("BA original successfully constructed!")
-    # symbols, g, initial, accepting = parser.parse(ba)
-    # print(ba.states.accepting) # Insert checks
-    # print(ba_orig.states.accepting)
-    # assert ba.states.accepting == ba_orig.states.accepting # Verify that these are the same states
 
-    return symbols, g, initial, accepting, ba
+    all_props = props
+    for ui,vi,di in trans:
+        if di not in all_props:
+            all_props.append(di)
+
+    return S, S0, Sa, all_props, trans
 
 def get_powerset_from_trans(props, trans):
     # st()
@@ -181,16 +206,16 @@ def construct_BA(S, S0, Sa, props, trans):
                     ba.transitions.add(ui, vi, letter=set())
                 else:
                     ba.transitions.add(ui, vi, letter=set([di]))
-                    print(set([di]))
+                    # print(set([di]))
             elif isinstance(di, list):
                 ba.transitions.add(ui, vi, letter=set(di))
-                print(set(di))
+                # print(set(di))
             elif isinstance(di, tuple):
                 ba.add_edge(ui, vi, letter=(di,))
-                print(set(di))
+                # print(set(di))
             elif di == True:
                 ba.transitions.add(ui, vi, letter=set([di]))
-                print(set([di]))
+                # print(set([di]))
             # elif di == {True}:
             #     ba.transitions.add(ui, vi, letter=di)
             #     print(set([di]))
@@ -207,6 +232,10 @@ def construct_BA(S, S0, Sa, props, trans):
     # st()
     return ba
 
+# def make_ba(S, S0, Sa, Sigma, trans):
+#     ba = tuple2ba(S, S0, Sa, Sigma, trans, name='ba', prepend_str=None, atomic_proposition_based=True)
+#     return ba
+
 def get_transition_system(mazefile):
     '''
     Convert the given network to a transition system in TuLiP.
@@ -215,6 +244,7 @@ def get_transition_system(mazefile):
     '''
     maze = CorridorNetwork(mazefile, (0,6), (0,2)) # Creates the maze object
     ts, state_map = convert_network_to_FTS(maze.gamegraph, maze.states, maze.next_state_dict, (0,4), maze.len_x, maze.len_y)
+    ts.name = 'TS'
     print('Transition system constucted.')
     return ts, state_map
 
@@ -224,10 +254,11 @@ def get_tester_BA():
     ba : BA using the AP 'intermed' as guard
     ba_orig: BA using the system coordinates as guard
     '''
-    orig_guard = {'(intermed)': ('x=2', 'y=0'), '(1)':'(1)'}
+    # orig_guard = {'(intermed)': ('x=2', 'y=0'), '(1)':'(1)'}
     # f = '[]((!goal1 U key1) || (!goal2 U key2))'
-    f = '!goal1 U key1 && <>goal1'
-    symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
+    f = '<>(key1) && <>(key2)'
+    symbols, g, initial, accepting, ba = get_BA(f) # BA conversion only for safety and progress
+    ba.name = 'B_test'
     ba.save('test_ba.pdf')
     # ba_orig.save('test_ba_orig.pdf')
     print('Tester BA constucted.')
@@ -240,8 +271,9 @@ def get_system_BA():
     ba_orig: BA using the system coordinates as guard
     '''
     orig_guard = {'(goal)': ('x=0', 'y=0'), '(1)':'(1)'}
-    f = '[]<>(goal)'
+    f = '<>[](goal)'
     symbols, g, initial, accepting, ba = get_BA(f, orig_guard) # BA conversion only for safety and progress
+    ba.name = 'B_sys'
     ba.save('sys_ba.pdf')
     # ba_orig.save('sys_ba_orig.pdf')
     print('System BA constucted.')
@@ -290,8 +322,7 @@ def async_product_BAs(test_ba, sys_ba):
 
 
     prod_ba = construct_BA(S_prod, S0_prod, Sa_prod, props_prod, trans_list)
-    # st()
-    prod_ba.save('product_ba.pdf')
+    prod_ba.name = 'B_prod'
     return prod_ba
 
 def remove_redundant_empty_sets(trans_dict):
@@ -311,7 +342,6 @@ def remove_redundant_transitions(trans_list):
     trans_list_clean = remove_redundant_empty_sets(trans_dict)
     return trans_list_clean
 
-
 def get_trans_dict(trans_list):
     trans_dict = dict()
     # st()
@@ -324,8 +354,6 @@ def get_trans_dict(trans_list):
     # st()
     return trans_dict
 
-
-
 def construct_virtual_product_automaton(prod_ba, ts):
     st()
     virtual_prod_aut, virtual_accepting = products.ts_ba_sync_prod(ts, prod_ba)
@@ -334,10 +362,8 @@ def construct_virtual_product_automaton(prod_ba, ts):
     return virtual_prod_aut, virtual_accepting
 
 def construct_product_automaton(ba, ts):
-    prod_aut, accepting = products.ts_ba_sync_prod(ts, ba)
-    # prod_aut.save('example_prod_aut.pdf')
-    # st()
-    return prod_aut, accepting
+    prod_aut = products.ba_ts_sync_prod(ba, ts)
+    return prod_aut
 
 def ba_test(): # From TuLiP source code
     ba = BuchiAutomaton()
@@ -401,34 +427,146 @@ def ts_test(): # From TuLiP source code
     ts.save('ts_tulip.pdf')
     return ts
 
-if __name__ == '__main__':
-    mazefile = "corridor_networkfile.txt"
-    # Find the separate automata (ts, test_ba and sys_ba)
-    ts, state_map = get_transition_system(mazefile)
-    test_ba = get_tester_BA()
-    sys_ba = get_system_BA()
-
-    # Check by running the TuLiP examples
+def check_tulip(): # Check by running the TuLiP examples
     ba_tulip = ba_test()
     ts_tulip = ts_test()
     test_prod, acc = products.ts_ba_sync_prod(ts_tulip, ba_tulip)
     test_prod.save('prod_tulip.pdf')
 
-    # st()
-    # Making the BA and TS compatible
-    sys_ba.atomic_propositions |= {'(goal1)','(key1)','(key2)','(goal2)'}
-    # Construct the product automata for just the transition system and one BA - just to check
-    check_goal, goal_acc = construct_product_automaton(sys_ba, ts) # check if it goes to goal
-    check_goal.save('prod_aut_sys_and_ts.pdf')
-    # st()
+def create_ts_automata_and_virtual_game_graph():
+    mazefile = "corridor_networkfile.txt"
+    # Find the transition system
+    ts, state_map = get_transition_system(mazefile)
+    # transition system with just the system labels
+    maze = CorridorNetwork(mazefile, (0,6), (0,2)) # Creates the maze object
+    testing_ts_for_sys, state_map = convert_network_to_FTS_for_system(maze.gamegraph, maze.states, maze.next_state_dict, (0,4), maze.len_x, maze.len_y)
 
     # Find the product Buchi Automaton for the system and tester specs
+    test_ba = get_tester_BA()
+    sys_ba = get_system_BA()
+
     prod_ba = async_product_BAs(test_ba, sys_ba)
-    # st()
-
-    # Construct the virtual priduct automaton synchronous product TS x BA_prod
-    virtual_prod_aut, virtual_accepting = construct_virtual_product_automaton(prod_ba, ts)
-
-    # test_virtual = OnTheFlyProductAutomaton(prod_ba, ts) # Should do the same
-    st()
+    prod_ba.save('prod_ba.pdf')
     print("Constructed Product automaton")
+    virtual = construct_product_automaton(prod_ba, ts) # check if it goes to goal
+
+    # add the transitions that the tulip synchronous product function missed ??
+    virtual.transitions.add(('s5', ('T1_S3_test', 'T0_init_sys')), ('s6', ('T1_S3_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s7', ('T1_S3_test', 'T0_init_sys')), ('s6', ('T1_S3_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s1', ('T0_S2_test', 'T0_init_sys')), ('s2', ('T0_S2_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s3', ('T0_S2_test', 'T0_init_sys')), ('s2', ('T0_S2_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s5', ('accept_all_test', 'T0_init_sys')), ('s6', ('accept_all_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s7', ('accept_all_test', 'T0_init_sys')), ('s6', ('accept_all_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s1', ('accept_all_test', 'T0_init_sys')), ('s2', ('accept_all_test', 'T0_init_sys')), letter=set())
+    virtual.transitions.add(('s3', ('accept_all_test', 'T0_init_sys')), ('s2', ('accept_all_test', 'T0_init_sys')), letter=set())
+
+    virtual.save('virtual.pdf')
+    print("Constructed virtual game graph")
+    sys_virtual = construct_product_automaton(sys_ba, testing_ts_for_sys) # check if it goes to goal
+    sys_virtual.save('system_virtual.pdf')
+    print("Constructed virtual game graph for the system")
+    return ts, prod_ba, virtual, sys_virtual, state_map
+
+def make_graphs_for_optimization(prod_ba, virtual, sys_virtual, state_map):
+    # virtual game graph info
+    G = setup_nodes_and_edges_for_G(virtual)
+    # prod ba info - probably not necessary, if yes return what is needed
+    B_prod = setup_nodes_and_edges_for_prod_ba(prod_ba)
+    # virtual system game graph info
+    S = setup_nodes_and_edges_for_S(sys_virtual)
+
+    return G, B_prod, S
+
+def setup_nodes_and_edges_for_prod_ba(prod_ba):
+    # setup nodes and map
+    nodes = []
+    node_dict = {}
+    inv_node_dict = {}
+    for i, node in enumerate(prod_ba.nodes):
+        nodes.append(i)
+        node_dict.update({i: node})
+        inv_node_dict.update({node: i})
+    # find initial state
+    init = []
+    for initial in prod_ba.states.initial:
+        init.append(inv_node_dict[initial])
+    # find accepting states for system and tester
+    acc_sys = []
+    acc_test = []
+    for i in node_dict.keys():# states are labeled (tester,system)
+        if 'accept' in node_dict[i][0]:
+            acc_test.append(i)
+        if 'accept' in node_dict[i][1]:
+            acc_sys.append(i)
+    # setup edges
+    edges = []
+    for edge in prod_ba.edges:
+        edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
+
+    B_prod = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init)
+    return B_prod
+
+def setup_nodes_and_edges_for_G(virtual):
+    # setup nodes and map
+    nodes = []
+    node_dict = {}
+    inv_node_dict = {}
+    for i, node in enumerate(virtual.nodes):
+        nodes.append(i)
+        node_dict.update({i: node})
+        inv_node_dict.update({node: i})
+    # find initial state
+    init = []
+    for initial in virtual.states.initial:
+        init.append(inv_node_dict[initial])
+    # find accepting states for system and tester
+    acc_sys = []
+    acc_test = []
+    for i in node_dict.keys():# states are labeled (ts, (tester,system))
+        if 'accept' in node_dict[i][1][1]: # check if system goal first, no duplicates
+            acc_sys.append(i)
+        elif 'accept' in node_dict[i][1][0]:
+            acc_test.append(i)
+    # setup edges
+    edges = []
+    for edge in virtual.edges:
+        edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
+
+    G = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init)
+    return G
+
+def setup_nodes_and_edges_for_S(sys_virtual):
+    # setup nodes and map
+    nodes = []
+    node_dict = {}
+    inv_node_dict = {}
+    for i, node in enumerate(sys_virtual.nodes):
+        nodes.append(i)
+        node_dict.update({i: node})
+        inv_node_dict.update({node: i})
+    # find initial state
+    init = []
+    for initial in sys_virtual.states.initial:
+        init.append(inv_node_dict[initial])
+    # find accepting states for system and tester
+    acc_sys = []
+    acc_test = []
+    for i in node_dict.keys():# states are labeled (ts,system)
+        if 'accept' in node_dict[i][1]:
+            acc_sys.append(i)
+    # setup edges
+    edges = []
+    for edge in sys_virtual.edges:
+        edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
+
+    S = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, None, init)
+
+    return S
+
+
+if __name__ == '__main__':
+    # will return tulip ts, bas and a map from ts states to actual coordinates in the form ('s0' : (0,0))
+    ts, prod_ba, virtual, sys_virtual, state_map = create_ts_automata_and_virtual_game_graph()
+    # G, B_prod, S are GraphData objects with the corresponding attributes
+    G, B_prod, S = make_graphs_for_optimization(prod_ba, virtual, sys_virtual, state_map)
+    st()
