@@ -33,8 +33,6 @@ from helpers.automata_helper_functions import async_product_BAs, get_BA, constru
 # build parser once only
 parser = ltl2baint.Parser()
 
-
-
 def convert_network_to_FTS_for_system(G, states, next_state_dict, init, lenx, leny):
     # TS T that only includes system APs such that tulip can create the product of B_sys x T
     ts = transys.FiniteTransitionSystem()
@@ -106,7 +104,6 @@ def convert_network_to_FTS(G, states, next_state_dict, init, lenx, leny):
     ts.save('ts.pdf')
     return ts, state_map
 
-
 def prepare_BA(f):
     # f = '[]<>(intermed)'
     # st()
@@ -131,7 +128,6 @@ def prepare_BA(f):
 
     return S, S0, Sa, all_props, trans
 
-
 def get_transition_system(mazefile): # from file
     '''
     Convert the given network to a transition system in TuLiP.
@@ -143,7 +139,6 @@ def get_transition_system(mazefile): # from file
     ts.name = 'TS'
     print('Transition system constucted.')
     return ts, state_map
-
 
 def setup_transition_systems(network): # for 3 door example
     # st()
@@ -239,102 +234,6 @@ def create_ts_automata_and_virtual_game_graph():
     sys_virtual.save('system_virtual.pdf')
     print("Constructed virtual game graph for the system")
     return ts, prod_ba, virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr
-
-# def make_graphs_for_optimization(prod_ba, virtual, sys_virtual, state_map):
-#     # virtual game graph info
-#     G = setup_nodes_and_edges_for_G(virtual)
-#     # prod ba info - probably not necessary, if yes return what is needed
-#     B_prod = setup_nodes_and_edges_for_prod_ba(prod_ba)
-#     # virtual system game graph info
-#     S = setup_nodes_and_edges_for_S(sys_virtual)
-#     return G, B_prod, S
-#
-# def setup_nodes_and_edges_for_prod_ba(prod_ba):
-#     # setup nodes and map
-#     nodes = []
-#     node_dict = {}
-#     inv_node_dict = {}
-#     for i, node in enumerate(prod_ba.nodes):
-#         nodes.append(i)
-#         node_dict.update({i: node})
-#         inv_node_dict.update({node: i})
-#     # find initial state
-#     init = []
-#     for initial in prod_ba.states.initial:
-#         init.append(inv_node_dict[initial])
-#     # find accepting states for system and tester
-#     acc_sys = []
-#     acc_test = []
-#     for i in node_dict.keys():# states are labeled (tester,system)
-#         if 'accept' in node_dict[i][0]:
-#             acc_test.append(i)
-#         if 'accept' in node_dict[i][1]:
-#             acc_sys.append(i)
-#     # setup edges
-#     edges = []
-#     for edge in prod_ba.edges:
-#         edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
-#
-#     B_prod = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init)
-#     return B_prod
-#
-# def setup_nodes_and_edges_for_G(virtual):
-#     # setup nodes and map
-#     nodes = []
-#     node_dict = {}
-#     inv_node_dict = {}
-#     for i, node in enumerate(virtual.nodes):
-#         nodes.append(i)
-#         node_dict.update({i: node})
-#         inv_node_dict.update({node: i})
-#     # find initial state
-#     init = []
-#     for initial in virtual.states.initial:
-#         init.append(inv_node_dict[initial])
-#     # find accepting states for system and tester
-#     acc_sys = []
-#     acc_test = []
-#     for i in node_dict.keys():# states are labeled (ts, (tester,system))
-#         if 'accept' in node_dict[i][1][1]: # check if system goal first, no duplicates
-#             acc_sys.append(i)
-#         elif 'accept' in node_dict[i][1][0]:
-#             acc_test.append(i)
-#     # setup edges
-#     edges = []
-#     for edge in virtual.edges:
-#         edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
-#
-#     G = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init)
-#     return G
-#
-# def setup_nodes_and_edges_for_S(sys_virtual):
-#     # setup nodes and map
-#     nodes = []
-#     node_dict = {}
-#     inv_node_dict = {}
-#     for i, node in enumerate(sys_virtual.nodes):
-#         nodes.append(i)
-#         node_dict.update({i: node})
-#         inv_node_dict.update({node: i})
-#     # find initial state
-#     init = []
-#     for initial in sys_virtual.states.initial:
-#         init.append(inv_node_dict[initial])
-#     # find accepting states for system and tester
-#     acc_sys = []
-#     acc_test = []
-#     for i in node_dict.keys():# states are labeled (ts,system)
-#         if 'accept' in node_dict[i][1]:
-#             acc_sys.append(i)
-#     # setup edges
-#     edges = []
-#     for edge in sys_virtual.edges:
-#         edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
-#
-#     S = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, None, init)
-#
-#     return S
-#
 
 if __name__ == '__main__':
     ts, prod_ba, virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = create_ts_automata_and_virtual_game_graph()
