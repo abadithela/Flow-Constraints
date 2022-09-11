@@ -1,0 +1,7 @@
+# install with 'pip install -r requirements.txt'
+numpy==1.18.5
+matplotlib==3.3.2
+ipdb==0.13.3
+networkx==2.4
+imageio==2.13.5
+Pyomo==6.4.1
