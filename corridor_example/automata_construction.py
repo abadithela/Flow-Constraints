@@ -560,7 +560,6 @@ def setup_nodes_and_edges_for_S(sys_virtual):
         edges.append((inv_node_dict[edge[0]],inv_node_dict[edge[1]]))
 
     S = GraphData(nodes, edges, node_dict, inv_node_dict, acc_sys, None, init)
-
     return S
 
 

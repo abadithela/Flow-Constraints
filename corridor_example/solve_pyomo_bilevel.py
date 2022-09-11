@@ -31,7 +31,7 @@ def solve_bilevel(nodes, edges, init, intermed, goal):
     src = init # list
     sink = goal # list
     int = intermed # list
-    # st()
+    st()
     vars = ['f1_e', 'f2_e', 'd_e', 'F']
     model.y = pyo.Var(vars, model.edges, within=pyo.NonNegativeReals)
     model.t = pyo.Var(within=pyo.NonNegativeReals)

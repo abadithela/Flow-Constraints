@@ -43,7 +43,6 @@ def setup_nodes_and_edges(virtual_ba):
 def call_pyomo(nodes,edges, init, intermed, goal):
     # st()
     cleaned_intermed = [x for x in intermed if x not in goal]
-
     f1_e, f2_e, f3_e, d_e, F = solve_bilevel(nodes,edges, init, cleaned_intermed, goal)
     # st()
     cuts = [x for x in d_e.keys() if d_e[x] >= 0.9 ]
@@ -69,8 +68,6 @@ def find_cuts():
     G, state_map, node_dict, inv_node_dict, cuts = get_game_graph_and_cuts(cuts, nodes, edges, node_dict, inv_node_dict, state_map, init)
     st()
     return G, state_map, node_dict, inv_node_dict, init, cuts
-
-
 
 if __name__ == '__main__':
     find_cuts()

@@ -21,61 +21,88 @@ def automata():
     ts, prod_ba, virtual, sys_virtual, state_map = create_ts_automata_and_virtual_game_graph()
     # G, B_prod, S are GraphData objects with the corresponding attributes
     G, B_prod, S = make_graphs_for_optimization(prod_ba, virtual, sys_virtual, state_map)
+    for i,j in S.edges:
+        if i == j:
+            S.graph.remove_edge(i,j)
+            S.edges = S.graph.edges
+
+    for i, j in G.edges:
+        if i == j:
+            G.graph.remove_edge(i,j)
+            G.edges = G.graph.edges
     return G, B_prod, S
 
-def add_sys_ba_vars(model, S):
+def add_sys_ba_vars(model, S, G, sys_ba_de):
     vars = ['fba_e', 'dba_e']
-    model.ba_edges = S.edges
-    model.ba_nodes = S.nodes
+    model_edges = [] # Store de values for every edge in S for every Bprod
+    model_nodes = []
+    ba_keys = []
+    for k in sys_ba_de.keys():
+        k_edges = []
+        k_nodes = []
+        k1 = k[0]
+        k2 = k[1]
+
+        for edge in S.edges:
+            if ((k1, k2), edge[0], edge[1]) not in k_edges:
+                k_edges.extend([((k1, k2), edge[0], edge[1])])
+
+        for node in S.nodes:
+            if (k,node) not in k_nodes:
+                k_nodes.extend([(k, node)])
+            if k not in ba_keys:
+                ba_keys.extend([k])
+        model_edges.extend(k_edges)
+        model_nodes.extend(k_nodes)
+
+    model.ba_edges = model_edges
+    model.ba_nodes = model_nodes
+    model.ba_keys = ba_keys
     model.ba_var = pyo.Var(vars, model.ba_edges, within=pyo.NonNegativeReals)
     src = S.init
     sink = S.acc_sys
+
     # Capacity constraint on flow
-    def cap_constraint(model, i, j):
-        return model.ba_var['fba_e', i, j] <= 1.0
+    def cap_constraint(model, k1, k2, i, j):
+        return model.ba_var['fba_e', k1, k2, i, j] <= 1.0
     model.cap = pyo.Constraint(model.ba_edges, rule=cap_constraint)
 
-    def cut_bound_constraint(model, i, j):
-        return model.ba_var['dba_e', i, j] <= 1.0
+    def cut_bound_constraint(model, k1, k2, i, j):
+        return model.ba_var['dba_e', k1, k2, i, j] <= 1.0
     model.de_cap = pyo.Constraint(model.ba_edges, rule=cut_bound_constraint)
 
-    def ba_cut_constraint(model, i, j):
-        return model.ba_var['dba_e', i, j] + model.ba_var['fba_e', i, j] <= 1.0
+    def ba_cut_constraint(model, k1, k2, i, j):
+        return model.ba_var['dba_e', k1, k2, i, j] + model.ba_var['fba_e', k1, k2, i, j] <= 1.0
     model.de_cut = pyo.Constraint(model.ba_edges, rule=ba_cut_constraint)
 
-    # Positive flow:
-    def ba_flow_src(model):
-        return 1 <= sum(model.ba_var['fba_e', i,j] for (i, j) in model.ba_edges if i in src)
-    model.ba_flow = pyo.Constraint(rule=ba_flow_src)
-
     # Conservation constraints:
-    def ba_conservation(model, k):
+    def ba_conservation(model, l1, l2, k):
+
         if k in src or k in sink:
             return pyo.Constraint.Skip
-        incoming  = sum(model.ba_var['fba_e', i,j] for (i,j) in model.ba_edges if j == k)
-        outgoing = sum(model.ba_var['fba_e', i,j] for (i,j) in model.ba_edges if i == k)
+        incoming  = sum(model.ba_var['fba_e', k1,k2, i,j] for ((k1,k2),i,j) in model.ba_edges if (j == k and (l1,l2)==(k1,k2)))
+        outgoing = sum(model.ba_var['fba_e', k1, k2, i,j] for ((k1, k2),i,j) in model.ba_edges if (i == k and (l1,l2)==(k1,k2)))
         return incoming == outgoing
     model.ba_cons = pyo.Constraint(model.ba_nodes, rule=ba_conservation)
 
     # no flow into sources and out of sinks
-    def ba_no_in_source(model, i,k):
+    def ba_no_in_source(model, key1, key2, i,k):
         if k in src:
-            return model.ba_var['fba_e',i,k] == 0
+            return model.ba_var['fba_e',key1, key2,i,k] == 0
         else:
             return pyo.Constraint.Skip
     model.ba_no_in_source = pyo.Constraint(model.ba_edges, rule=ba_no_in_source)
     # nothing leaves sink
-    def ba_no_out_sink(model, i,k):
+    def ba_no_out_sink(model, key1,key2,i,k):
         if i in sink:
-            return model.ba_var['fba_e', i,k] == 0
+            return model.ba_var['fba_e', key1,key2,i,k] == 0
         else:
             return pyo.Constraint.Skip
     model.ba_no_out_sink = pyo.Constraint(model.ba_edges, rule=ba_no_out_sink)
     return model
 
-def group_cuts(model, G, B_prod, S):
+def group_cuts(G, B_prod, S):
     map_q_to_de = dict() # M: q -> de. Edges that are active at any given state
-    map_sq_to_de = dict()
     sys_ba_de = dict()
 
     for qnode in B_prod.nodes:
@@ -111,15 +138,45 @@ def group_cuts(model, G, B_prod, S):
             except:
                 pdb.set_trace()
     print("1-1 mapping of edges")
-    pdb.set_trace()
+    return map_q_to_de, sys_ba_de
+
+def add_sys_ba_constraints(model, S, G, sys_ba_de):
+    src = S.init
+    def edge_match(model, k1,k2, i, j):
+        si, qi = S.node_dict[i] # numeric to string
+        sj, qj = S.node_dict[j] # Going to names
+        relevant_edges = sys_ba_de[(k1,k2)]
+        for S_edge, G_edge in relevant_edges.items():
+            if si == S_edge[0][0] and sj == S_edge[1][0]:
+                vGi = G_edge[0][0]
+                vGj = G_edge[0][1]
+                imap = G.inv_node_dict[vGi] # Converting string back to integers nodes
+                jmap = G.inv_node_dict[vGj]
+                assert((imap, jmap) in model.edges)
+                return model.ba_var['dba_e', k1,k2,i,j] == model.y['d_e', imap, jmap]
+        return pyo.Constraint.Skip
+    model.edge_matching = pyo.Constraint(model.ba_edges, rule=edge_match)
+
+    # pdb.set_trace()
+    # Positive flow for Buchi automaton in each case
+    def ba_flow_src(model, key1, key2):
+        # pdb.set_trace()
+        sum = 0
+        for ((k1,k2),i,j) in model.ba_edges:
+            if i in src and (k1,k2) == (key1, key2):
+                sum += model.ba_var['fba_e', k1, k2, i,j]
+        return 1 <= sum
+    model.ba_flow = pyo.Constraint(model.ba_keys, rule=ba_flow_src)
+
     return model
 
 def add_automata_constraints(model, src, sink, int):
     G, B_prod, S = automata()
-    model = add_sys_ba_vars(model, S) # Adds variables pertaining to the Buchi product automaton of the system transition and system spec
+    map_q_to_de, sys_ba_de = group_cuts(G, B_prod, S) # Add constraint that at every state, S has a flow of atleast 1.
+    model = add_sys_ba_vars(model, S, G, sys_ba_de) # Adds variables pertaining to the Buchi product automaton of the system transition and system spec
     # Group states in G according to cuts d_e that are active at that point
-    model = group_cuts(model, G, B_prod, S) # Add constraint that at every state, S has a flow of atleast 1.
-    pdb.set_trace()
+    model = add_sys_ba_constraints(model, S, G, sys_ba_de)
+    # pdb.set_trace()
     return model
 
 def solve_bilevel(nodes, edges, init, intermed, goal):
@@ -341,6 +398,7 @@ def solve_bilevel(nodes, edges, init, intermed, goal):
 
 if __name__ == '__main__':
     ts, prod_ba, virtual_ba, sys_virtual, state_map = create_ts_automata_and_virtual_game_graph()
+    
     nodes = []
     node_dict = {}
     inv_node_dict = {}
@@ -369,3 +427,4 @@ if __name__ == '__main__':
     cleaned_intermed = [x for x in acc_test if x not in acc_sys]
 
     f1_e, f2_e, f3_e, d_e, F = solve_bilevel(nodes,edges, init, cleaned_intermed, acc_sys)
+    pdb.set_trace()
