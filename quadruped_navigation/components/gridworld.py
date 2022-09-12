@@ -57,10 +57,12 @@ class GridWorld:
 
     def agent_take_step(self):
         x_old = self.agent.s
-        # if x_old == 'int_goal':
-        #     self.agent.s = 'p2'
-        # else:
-        self.agent.agent_move()
+        if x_old == 'int_goal':
+            self.agent.s = 'p2'
+            st()
+            print('Agent moving to {}'.format(self.agent.s))
+        else:
+            self.agent.agent_move()
             # st()
         succs = self.G[self.agent_in_state_x]
         for node in succs:
@@ -69,7 +71,14 @@ class GridWorld:
         if x_old != self.agent.s:
             self.replanned = False
         print('Agent in state {}'.format(self.agent_in_state_x))
-        quadruped_move(self.agent.s)
+        if self.agent.s == 'p1':
+            quadruped_move('s1')
+        elif self.agent.s == 'p2':
+            quadruped_move('s2')
+        elif self.agent.s == 'p3':
+            quadruped_move('s3')
+        else:
+            quadruped_move(self.agent.s)
 
 
     def test_strategy(self):

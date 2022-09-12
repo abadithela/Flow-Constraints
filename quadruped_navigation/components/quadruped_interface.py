@@ -2,7 +2,7 @@
 from ipdb import set_trace as st
 
 MAP = {'init': (0,1), 'd1': (1,0), 'd2': (1,1), 'd3': (1,2), 'int_goal': (3,1), \
-        'p1': (2,0), 'p2': (2,1), 'p3': (2,2), 'goal': (0,1)} # to be modified for actual hardware implementation
+        's1': (2,0), 's2': (2,1), 's3': (2,2), 'goal': (0,1)} # to be modified for actual hardware implementation
 
 def quadruped_move(move_to):
     print('Quadruped move to {}'.format(MAP[move_to]))
