@@ -171,12 +171,12 @@ def setup_transition_systems(network): # for 3 door example
             ts.states.add(si, ap={'(jump)'})
             # ts_sys.states.add(si, ap={'(goal)'})
         elif si == 's5':
-            ts.states.add(si, ap={'(stand)'})
-        elif si == 's6':
             ts.states.add(si, ap={'(lie)'})
-        elif si == 's7':
+        elif si == 's6':
             ts.states.add(si, ap={'(stand)'})
-        elif si == 's11':
+        # elif si == 's7':
+        #     ts.states.add(si, ap={'(stand)'})
+        elif si == 's10':
             ts.states.add(si, ap={'(goal)'})
         for successor_snr in succs_in_snr:
             ts.transitions.add(si, successor_snr)#, sys_actions=act)

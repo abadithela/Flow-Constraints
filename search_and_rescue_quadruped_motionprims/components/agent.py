@@ -16,7 +16,7 @@ class Agent:
         self.network = network
 
     def find_controller(self,maze, init):
-        print('------- (Re-)synthesizing the agent\'s controller ('-------')
+        print('------- (Re-)synthesizing the agent\'s controller -------')
         logging.basicConfig(level=logging.WARNING)
         logging.getLogger('tulip.spec.lexyacc').setLevel(logging.WARNING)
         logging.getLogger('tulip.synth').setLevel(logging.WARNING)

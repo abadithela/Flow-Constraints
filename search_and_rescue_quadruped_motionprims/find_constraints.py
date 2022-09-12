@@ -65,9 +65,9 @@ def get_graph(nodes, edges):
 
 
 def find_cuts():
-    states = ['init', 'p1', 'p2', 'p3', 'jump1', 'stand1', 'lie2', 'stand3', 'd1', 'd2', 'd3', 'goal']
-    transitions = [('init', 'p1'), ('init', 'p2'), ('init', 'p3'), ('p1', 'jump1'),('p1', 'stand1'), ('p2', 'lie2'), \
-    ('p3', 'stand3'), ('jump1', 'd1'), ('stand1', 'd1'),('lie2', 'd2'), ('stand3', 'd3'), \
+    states = ['init', 'p1', 'p2', 'p3', 'jump1', 'lie2', 'stand3', 'd1', 'd2', 'd3', 'goal']
+    transitions = [('init', 'p1'), ('init', 'p2'), ('init', 'p3'), ('p1', 'jump1'), ('p2', 'lie2'), \
+    ('p3', 'stand3'), ('jump1', 'd1'),('lie2', 'd2'), ('stand3', 'd3'), \
     ('d2', 'p1'), ('d3', 'p2'), ('d1', 'p2'), ('d2', 'p3'), \
     ('p2', 'p1'), ('p3', 'p2'), ('p1', 'p2'), ('p2', 'p3'), \
     ('d1', 'goal'), ('d2', 'goal'), ('d3', 'goal')]
