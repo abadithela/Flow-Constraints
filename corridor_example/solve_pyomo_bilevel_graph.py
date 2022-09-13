@@ -306,8 +306,9 @@ def solve_bilevel(nodes, edges, init, intermed, goal):
 
     # SUBMODEL
     # Objective - Maximize the flow into the sink
-    def flow_sink(model):
-        return sum(model.f3[i,j] for (i, j) in model.edges if j in sink)
+    def flow_sink(mdl):
+        lam = 1
+        return model.t + lam*sum(mdl.f3[i,j] for (i, j) in mdl.edges if j in sink)
     model.L.o = pyo.Objective(rule=flow_sink, sense=pyo.maximize)
 
     # Capacity constraints
@@ -398,7 +399,7 @@ def solve_bilevel(nodes, edges, init, intermed, goal):
 
 if __name__ == '__main__':
     ts, prod_ba, virtual_ba, sys_virtual, state_map = create_ts_automata_and_virtual_game_graph()
-    
+
     nodes = []
     node_dict = {}
     inv_node_dict = {}
