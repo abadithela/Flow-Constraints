@@ -7,10 +7,12 @@ import _pickle as pickle
 import os
 import networkx as nx
 from road_network.components.road_network import RoadNetwork, create_network_from_file
+from road_network.helpers.plotting import plot_mcf as roadnet_plot_mcf
+from static_obstacle_maze.plotting import plot_mcf as maze_plot_mcf
 from static_obstacle_maze.network import MazeNetwork
 import matplotlib.pyplot as plt
 from scipy import sparse as sp
-from optimization_pyomo import Vout, Vin, Vin_oracle, max_oracle_gd, max_oracle_pyomo, projx, gradient
+from optimization_pyomo import Vout, Vin, Vin_oracle, max_oracle_gd, max_oracle_pyomo, projx, gradient, max_oracle_pyomo_v2
 import pdb
 
 # Initialize:
@@ -433,6 +435,26 @@ def match_edges(edges_keys, ne, flow_dict):
         flow_init[k,0] = flow_dict[edge[0]][edge[1]] # Parsing the flow dict
     return flow_init
 
+# Projection constraints:
+def proj_constraints_box_only(edges_keys, nodes_keys, src, int, sink):
+    A_cap, b_cap, cap_names = capacity_constraint(edges_keys, projection=True)
+    A_cons, b_cons, cons_names = proj_conservation_constraint(nodes_keys, edges_keys, src, int, sink)
+    # A_eq, b_eq, eq_names = eq_aux_constraint(edges_keys, projection=True)
+    A_cut, b_cut, cut_names = cut_constraint(edges_keys, projection=True)
+    A_flow, b_flow, flow_names = min_flow_constraint(edges_keys, src, int, sink, projection=True)
+    A_no_in_src, b_no_in_src, no_in_src_names = no_in_source(edges_keys, src, int, sink, projection=True)
+    A_no_out_sink, b_no_out_sink, no_out_sink_names = no_out_sink(edges_keys, src, int, sink, projection=True)
+    # A = np.vstack((A_feas, A_cap))
+    # b = np.vstack((b_feas, b_cap))
+    Aeq = np.vstack((A_cons))
+    beq = np.vstack((b_cons))
+    eq_cons_names = [*cons_names]
+
+    Aineq = np.vstack((A_cap, A_flow))
+    bineq = np.vstack((b_cap, b_flow))
+    ineq_cons_names = [*cap_names, *flow_names]
+    return Aeq, beq, eq_cons_names, Aineq, bineq, ineq_cons_names
+
 # Function to get a candidate initial condition:
 def get_candidate_flows(G, edges_keys, src, int, sink):
     ne = len(list(edges_keys.keys()))
@@ -459,24 +481,52 @@ def plot_matrix(M, fn):
     plt.show()
     plt.savefig(fn)
 
+def parse_solution(xtraj, ytraj, G, edges_keys, nodes_keys):
+    ne = len(edges_keys)
+    f1_e_hist = [dict() for k in range(len(xtraj))]
+    f2_e_hist = [dict() for k in range(len(xtraj))]
+    f3_e_hist = [dict() for k in range(len(xtraj))]
+    d_e_hist = [dict() for k in range(len(xtraj))]
+    F_hist = [0 for k in range(len(xtraj))]
+    for t in range(len(xtraj)):
+        try:
+            x = xtraj[t]
+            y = ytraj[t]
+            F_hist[t] = 1/x[-1]
+            for idx, val in edges_keys.items():
+                f1_e_hist[t].update({val: x[idx]*F_hist[t]})
+                f2_e_hist[t].update({val: x[ne + idx]*F_hist[t]})
+                d_e_hist[t].update({val: x[2*ne + idx]*F_hist[t]})
+                f3_e_hist[t].update({val: y[val]*F_hist[t]})
+        except:
+            pdb.set_trace()
+    return f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist
+
 def solve_opt(maze, src, sink, int):
     x, y, G, nodes_keys, edges_keys = initialize(maze)
     x0, y0 = get_candidate_flows(G, edges_keys, src, int, sink)
 
     Aeq, beq, eq_cons_names, Aineq, bineq, ineq_cons_names = all_constraints(edges_keys, nodes_keys, src, int, sink)
 
-    Aeq_proj, beq_proj, eq_cons_names_proj, Aineq_proj, bineq_proj, ineq_cons_names_proj = proj_constraints(edges_keys, nodes_keys, src, int, sink)
+    Aeq_proj, beq_proj, eq_cons_names_proj, Aineq_proj, bineq_proj, ineq_cons_names_proj = proj_constraints_box_only(edges_keys, nodes_keys, src, int, sink)
+
+    # Aineq_proj, bineq_proj, ineq_cons_names_proj = proj_constraints_box_only(edges_keys, nodes_keys, src, int, sink)
+    # Aeq_proj = None
+    # beq_proj = None
 
     c1, c2 = objective(edges_keys)
     ne = len(list(edges_keys.keys())) # number of edges
 
-    T = 20
-    eta = 0.01
+    T = 2000
+    eta = 0.9
     # pdb.set_trace()
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
     # xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, nodes_keys, src, sink, int, maze=maze)
-    xtraj, ytraj = max_oracle_pyomo(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys, nodes_keys, src, sink, int, maze=maze)
+    xtraj, ytraj = max_oracle_pyomo_v2(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys, nodes_keys, src, sink, int, maze=maze)
     # Vin(c1, c2, A, b, x0, edges_keys)
+    f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist = parse_solution(xtraj, ytraj, G, edges_keys, nodes_keys)
+    return f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist
+
 
 
 if __name__ == '__main__':
@@ -506,4 +556,14 @@ if __name__ == '__main__':
         maze = MazeNetwork(mazefile)
 
     reg = 10
-    solve_opt(maze, src, sink, int)
+    f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist = solve_opt(maze, src, sink, int)
+
+    if grid == "toy":
+        for t in range(len(F_hist)):
+            print("Max flow: " + str(F_hist[t]))
+            maze_plot_mcf(maze, f1_e_hist[t], f2_e_hist[t], f3_e_hist[t], d_e_hist[t])
+
+    elif grid == "small" or "large":
+        for t in range(len(F_hist)):
+            print("Max flow: " + str(F_hist[t]))
+            roadnet_plot_mcf(maze, f1_e_hist[t], f2_e_hist[t], f3_e_hist[t], d_e_hist[t])

@@ -8,7 +8,6 @@ import os
 import networkx as nx
 import gurobipy as gp
 from gurobipy import GRB
-from components.road_network import MazeNetwork, create_network_from_file
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 

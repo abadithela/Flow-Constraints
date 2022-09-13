@@ -11,6 +11,7 @@ from gurobipy import GRB
 from static_obstacle_maze.network import MazeNetwork, create_network_from_file
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+import pdb
 
 def plot_mcf(maze, flow1, flow2, flow3, cuts):
     tilesize = 1
@@ -69,6 +70,8 @@ def plot_mcf(maze, flow1, flow2, flow3, cuts):
                 y_val = (startxy[1]+endxy[1])/2
                 if cuts[cut] <= 1.0:
                     intensity = max(0,cuts[cut])/2
+                    if isinstance(intensity, np.ndarray):
+                        intensity = intensity[0]
                 else:
                     intensity = 1.0/2
                 axis[idx].plot([y_val+ tilesize/2, y_val+ tilesize/2], [x_val+ tilesize/2, x_val+ tilesize/2], color='black', alpha=intensity, marker='o')
@@ -79,6 +82,8 @@ def plot_mcf(maze, flow1, flow2, flow3, cuts):
                 endxy = flow[1]
                 if flows[idx][flow] <= 1.0:
                     intensity = max(0,flows[idx][flow])/2
+                    if isinstance(intensity, np.ndarray):
+                        intensity = intensity[0]
                 else:
                     intensity = 1.0/2
                 axis[idx].plot([startxy[1]+ tilesize/2, endxy[1]+ tilesize/2], [startxy[0]+ tilesize/2, endxy[0]+ tilesize/2], color=colorstr[idx], alpha=intensity, linestyle='-')

@@ -8,6 +8,7 @@ sys.path.append('..')
 from max_flow_oracle import max_flow_oracle, max_flow_oracle_fullg
 from static_obstacle_maze.plotting import plot_mcf
 pyomo_based = True
+from matplotlib import pyplot as plt
 
 # Matrix variables:
 def init_vars(edges_keys):
@@ -19,10 +20,13 @@ def init_vars(edges_keys):
 # Definition of projection operator onto non-negative halfplane:
 def projx(x0, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj):
     n = len(x0)
-    x = cp.Variable((n,1)) # Solves for -x
+    x = cp.Variable((n,1)) # Solves for -x --> ???
     l2_norm =  cp.sum_squares(x - x0)
     EPS_FLAG = 10**(-6)*np.ones((n,1))
-    constraints = [Aineq_proj @ x >= bineq_proj, Aeq_proj @ x == beq_proj, x >=np.zeros((n,1))]
+    if Aeq_proj is not None:
+        constraints = [Aineq_proj @ x >= bineq_proj, Aeq_proj @ x == beq_proj, x >=np.zeros((n,1))]
+    else:
+        constraints = [Aineq_proj @ x >= bineq_proj, x >=np.zeros((n,1))]
     # constraints = [Aproj @ x >= bproj, x >= EPS_FLAG]
     prob = cp.Problem(cp.Minimize(l2_norm), constraints)
     prob.solve()
@@ -36,6 +40,27 @@ def projx(x0, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj):
         if xproj[i][0] < 0:
             xproj[i][0] = 0.0
     # pdb.set_trace()
+    assert all(xproj >= np.zeros((n,1)))
+    return xproj
+
+def projx_des(xs, x0, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj):
+    n = len(x0)
+    t = cp.Variable() # Solves for -x
+    x = t*x0 + (1-t)*xs # x0 is the original x and xs is the descent x.
+    l2_norm =  cp.sum_squares(x - xs)
+    EPS_FLAG = 10**(-6)*np.ones((n,1))
+    constraints = [Aineq_proj @ x >= bineq_proj, Aeq_proj @ x == beq_proj, x >=np.zeros((n,1)), t >= 0, t <= 1]
+    # constraints = [Aproj @ x >= bproj, x >= EPS_FLAG]
+    prob = cp.Problem(cp.Minimize(l2_norm), constraints)
+    prob.solve()
+    # pdb.set_trace()
+    if prob.status == "infeasible" or prob.status == "unbounded":
+         pdb.set_trace()
+    xproj = x.value.copy()
+    for i in range(len(xproj)):
+        if xproj[i][0] < 0:
+            xproj[i][0] = 0.0
+    pdb.set_trace()
     assert all(xproj >= np.zeros((n,1)))
     return xproj
 
@@ -109,27 +134,109 @@ def match_dual_vars(lamt, eq_cons_names, ineq_cons_names):
             pdb.set_trace()
     return dual_vars
 
+def match_dual_vars_v2(lamt, eq_cons_names, ineq_cons_names):
+    # Inequality constraints and then equality constraints:
+    ineq_constraints = len(ineq_cons_names)
+    eq_constraints = len(eq_cons_names)
+    dual_vars = np.zeros((ineq_constraints + eq_constraints, 1))
+    for i, c in enumerate(ineq_cons_names):
+        if c in lamt.keys():
+            dual_vars[i,0] = lamt[c]
+        else:
+            dual_vars[i,0] = 0.0
+    for i, c in enumerate(eq_cons_names):
+        try:
+            dual_vars[ineq_constraints+i, 0] = 0
+        except:
+            pdb.set_trace()
+    return dual_vars
+
 # Max oracle pyomo based:
+# This is the Pyomo oracle that works!
 def max_oracle_pyomo(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, maze=None):
     LAMBDA = 1
+    EPS_FLG = 1e-6
+    grad_norm = []
+    proj = "not_des"
     ne = len(list(edges_keys.keys()))
-    xtraj = {i:None for i in range(T)}
+    xtraj = dict()
     xtraj[0] = x0
-    ytraj = {i:None for i in range(T)}
+    ytraj = dict()
+    converged = False
     for t in range(1,T-1):
-        yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1], LAMBDA)
+        try:
+            yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1], LAMBDA)
+        except:
+            pdb.set_trace()
         dual_vars = match_dual_vars(lamt, eq_cons_names, ineq_cons_names)
         ytraj[t-1] = yt.copy()
-        xstep = xtraj[t-1] - (1.0/t)*gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
-        xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+        xstep = xtraj[t-1] - (0.1)*gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
+        gt = np.linalg.norm(gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq))
+        grad_norm.append(gt)
+        if proj == "des":
+            xtraj[t] = projx_des(xstep, xtraj[t-1], ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+        else:
+            xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+        converged = np.linalg.norm(xtraj[t]-xtraj[t-1]) < EPS_FLG
+        if t in [20, 100, 250, 500]:
+            pdb.set_trace()
 
-    yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[T-2],LAMBDA)
-    ytraj[T-1] = yt.copy()
+        # if converged:
+        #     yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
+        #     ytraj[t] = yt.copy()
+        #     print("Converged!")
+        #     break
+    yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
+    ytraj[t] = yt.copy()
+    # if not converged:
     dual_vars = match_dual_vars(lamt, eq_cons_names, ineq_cons_names)
     xstep = xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
     xtraj[T-1] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
     print("Found a suitable lambda!")
-    pdb.set_trace()
+    return xtraj, ytraj
+
+# Max oracle pyomo based:
+# This is the Pyomo oracle that works!
+def max_oracle_pyomo_v2(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, maze=None):
+    LAMBDA = 1
+    EPS_FLG = 1e-6
+    grad_norm = []
+    proj = "not_des"
+    ne = len(list(edges_keys.keys()))
+    xtraj = dict()
+    xtraj[0] = x0
+    ytraj = dict()
+    converged = False
+    for t in range(1,T-1):
+        try:
+            yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1], LAMBDA)
+        except:
+            pdb.set_trace()
+        dual_vars = match_dual_vars_v2(lamt, eq_cons_names, ineq_cons_names)
+        ytraj[t-1] = yt.copy()
+        xstep = xtraj[t-1] - eta*gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
+        gt = np.linalg.norm(gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq))
+        grad_norm.append(gt)
+        if proj == "des":
+            xtraj[t] = projx_des(xstep, xtraj[t-1], ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+        else:
+            xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+        converged = np.linalg.norm(xtraj[t]-xtraj[t-1]) < EPS_FLG
+        if t in [20, 100, 250, 500, 1000]:
+            pdb.set_trace()
+
+        # if converged:
+        #     yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
+        #     ytraj[t] = yt.copy()
+        #     print("Converged!")
+        #     break
+    yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
+    ytraj[t] = yt.copy()
+    # if not converged:
+    dual_vars = match_dual_vars_v2(lamt, eq_cons_names, ineq_cons_names)
+    xstep = xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
+    xtraj[T-1] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+    print("Found a suitable lambda!")
     return xtraj, ytraj
 
 # Gradient descent:
@@ -156,7 +263,6 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nod
             pdb.set_trace()
         else:
             yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1],LAMBDA)
-            pdb.set_trace()
 
         if status == "infeasible" or status == "unbounded":
             run_diagnostics(Aineq_y, bineq_sub, xtraj, ytraj)
@@ -175,7 +281,11 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nod
         xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
         check_constraint(xtraj[t], yt, Aineq, bineq)
 
-    yt, inner_obj_t, lam_t, status = Vin(c1, c2, Aineq, bineq, xtraj[T-1], edges_keys, LAMBDA)
+    if not pyomo_based:
+        yt, inner_obj_t, lamt, status = Vin(c1, c2, Aineq, bineq, xtraj[t-1], edges_keys,LAMBDA)
+        pdb.set_trace()
+    else:
+        yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1],LAMBDA)
     pdb.set_trace()
     # if status == "infeasible" or status == "unbounded":
     #     continue
@@ -186,9 +296,15 @@ def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nod
     pdb.set_trace()
     return xtraj, ytraj
 
+def plot_grad_norm(gt):
+    fig, ax = plt.subplots()
+    time_stps = list(range(len(gt)))
+    plt.plot(time_stps, gt, 'b-*')
+    plt.show()
 
 def Vin_oracle(edges_keys, nodes_keys, src, sink, int, x,LAMBDA):
-    yt, lamt = max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x,LAMBDA)
+    yt, lamt = max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA)
+    # yt, lamt = max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x,LAMBDA)
     return yt, lamt
 
 def pseudo_inv(Aineq_y):
