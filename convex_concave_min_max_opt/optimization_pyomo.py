@@ -198,9 +198,9 @@ def max_oracle_pyomo(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_p
 # Max oracle pyomo based:
 # This is the Pyomo oracle that works!
 def max_oracle_pyomo_v2(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, maze=None):
-    LAMBDA = 1
+    LAMBDA = 1e4
     EPS_FLG = 1e-6
-    grad_norm = []
+    fval = []
     proj = "not_des"
     ne = len(list(edges_keys.keys()))
     xtraj = dict()
@@ -208,41 +208,40 @@ def max_oracle_pyomo_v2(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, be
     ytraj = dict()
     converged = False
     for t in range(1,T-1):
-        try:
-            yt, lamt = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1], LAMBDA)
-        except:
-            pdb.set_trace()
+        yt, lamt, fv = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t-1], LAMBDA)
         dual_vars = match_dual_vars_v2(lamt, eq_cons_names, ineq_cons_names)
         ytraj[t-1] = yt.copy()
-        xstep = xtraj[t-1] - eta*gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
-        gt = np.linalg.norm(gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq))
-        grad_norm.append(gt)
+        xstep = xtraj[t-1] - 0.1/t*gradient(xtraj[t-1], ytraj[t-1], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
+        # xstep = xtraj[t-1] - 0.1/t*np.random.random()*np.ones(xtraj[t-1].shape)
+        fval.append(fv)
         if proj == "des":
             xtraj[t] = projx_des(xstep, xtraj[t-1], ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
         else:
             xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
         converged = np.linalg.norm(xtraj[t]-xtraj[t-1]) < EPS_FLG
-        if t in [20, 100, 250, 500, 1000]:
+        if t in [500, 1000]:
             pdb.set_trace()
+            break
 
         # if converged:
         #     yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
         #     ytraj[t] = yt.copy()
         #     print("Converged!")
         #     break
-    yt, lam_t = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
+    yt, lam_t, fv = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
     ytraj[t] = yt.copy()
     # if not converged:
-    dual_vars = match_dual_vars_v2(lamt, eq_cons_names, ineq_cons_names)
-    xstep = xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
-    xtraj[T-1] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
+    # dual_vars = match_dual_vars_v2(lamt, eq_cons_names, ineq_cons_names)
+    # xstep = xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
+    # xstep = xtraj[T-2] - eta*np.random.random()*np.ones(xtraj[T-2].shape)
+    # xtraj[T-1] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
     print("Found a suitable lambda!")
     return xtraj, ytraj
 
 # Gradient descent:
 def max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys,nodes_keys, src, sink, int, maze=None):
     # for LAMBDA in np.logspace(,6,20):
-    LAMBDA = 1
+    LAMBDA = 1e4
     ne = len(list(edges_keys.keys()))
     Aineq_x = Aineq[:, 0:4*ne]
     Aineq_y = Aineq[:, 4*ne:]
@@ -303,9 +302,9 @@ def plot_grad_norm(gt):
     plt.show()
 
 def Vin_oracle(edges_keys, nodes_keys, src, sink, int, x,LAMBDA):
-    yt, lamt = max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA)
+    yt, lamt, fv = max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA)
     # yt, lamt = max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x,LAMBDA)
-    return yt, lamt
+    return yt, lamt, fv
 
 def pseudo_inv(Aineq_y):
     pseudo_inv = Aineq_y.T @ Aineq_y

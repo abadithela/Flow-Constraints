@@ -446,13 +446,13 @@ def proj_constraints_box_only(edges_keys, nodes_keys, src, int, sink):
     A_no_out_sink, b_no_out_sink, no_out_sink_names = no_out_sink(edges_keys, src, int, sink, projection=True)
     # A = np.vstack((A_feas, A_cap))
     # b = np.vstack((b_feas, b_cap))
-    Aeq = np.vstack((A_cons))
-    beq = np.vstack((b_cons))
-    eq_cons_names = [*cons_names]
+    Aeq = np.vstack((A_cons, A_no_in_src, A_no_out_sink))
+    beq = np.vstack((b_cons, b_no_in_src, b_no_out_sink))
+    eq_cons_names = [*cons_names, *no_in_src_names, *no_out_sink_names]
 
-    Aineq = np.vstack((A_cap, A_flow))
-    bineq = np.vstack((b_cap, b_flow))
-    ineq_cons_names = [*cap_names, *flow_names]
+    Aineq = np.vstack((A_cap, A_cut,  A_flow))
+    bineq = np.vstack((b_cap, b_cut, b_flow))
+    ineq_cons_names = [*cap_names, *cut_names, *flow_names]
     return Aeq, beq, eq_cons_names, Aineq, bineq, ineq_cons_names
 
 # Function to get a candidate initial condition:
@@ -518,13 +518,13 @@ def solve_opt(maze, src, sink, int):
     ne = len(list(edges_keys.keys())) # number of edges
 
     T = 2000
-    eta = 0.9
+    eta = 0.01
     # pdb.set_trace()
     # Vin_oracle(edges_keys, nodes_keys, src, sink, int, x0) #x0 is the wrong size
     # xtraj, ytraj = max_oracle_gd(T, x0, eta, c1, c2, Aineq, bineq, Aproj, bproj, edges_keys, nodes_keys, src, sink, int, maze=maze)
     xtraj, ytraj = max_oracle_pyomo_v2(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys, nodes_keys, src, sink, int, maze=maze)
     # Vin(c1, c2, A, b, x0, edges_keys)
-    f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist = parse_solution(xtraj, ytraj, G, edges_keys, nodes_keys)
+    f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist = parse_solution(xtraj[-1], ytraj[-1], G, edges_keys, nodes_keys)
     return f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist
 
 
@@ -559,9 +559,10 @@ if __name__ == '__main__':
     f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist = solve_opt(maze, src, sink, int)
 
     if grid == "toy":
-        for t in range(len(F_hist)):
-            print("Max flow: " + str(F_hist[t]))
-            maze_plot_mcf(maze, f1_e_hist[t], f2_e_hist[t], f3_e_hist[t], d_e_hist[t])
+        maze_plot_mcf(maze, f1_e_hist[-1], f2_e_hist[-1], f3_e_hist[-1], d_e_hist[-1])
+        # for t in range(len(F_hist)):
+        #     print("Max flow: " + str(F_hist[t]))
+        #     maze_plot_mcf(maze, f1_e_hist[t], f2_e_hist[t], f3_e_hist[t], d_e_hist[t])
 
     elif grid == "small" or "large":
         for t in range(len(F_hist)):

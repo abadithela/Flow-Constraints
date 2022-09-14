@@ -8,6 +8,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import pyomo.environ as pyo
+
 from pao.pyomo import *
 from pyomo.opt import SolverFactory
 import pdb
@@ -106,7 +107,7 @@ def max_flow_oracle(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
             lamt.update({((u_edge, v_edge), constraint_name): model.dual[key]})
         else:
             lamt.update({(u_edge, constraint_name): model.dual[key]})
-    return f3_e, lamt
+    return f3_e, lamt, pyo.value(model.o)
 
 # Pyomo max flow oracle:
 def max_flow_oracle_fullg(edges_keys, nodes_keys, src, sink, int, x, LAMBDA):
