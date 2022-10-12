@@ -33,12 +33,12 @@ This example is inspired by a search and rescue mission, the robot starts on one
 ### Pacman Maze Example
 We also implemented the flow-cut algorithm on simpler grid world examples, such as this maze example. The agent under test (pacman) wants to reach its goal state (yellow), but the tester places obstacles (red) such that every test execution will route pacman though the intermediate state (blue). In this case the obstacles can be placed statically on the gridworld as the system and tester specifications each only contain a single location on the grid.
 <p align="center">
-  <img src="static_obstacle_maze/animations/sim_w_colored_obs.gif">
+  <img src="static_obstacle_maze/animations/sim_w_colored_obs_cropped.gif">
 </p>
 
 ### Road Network
 This road network is another example of placing static obstacles using the flow-cut algorithm. The grid world in this case is a road network with two lanes and intersection. The initial position of the car is marked 'S', the intermediate state is 'I' and the goal state is 'T'.
-The algorithm fins a set static obstacles to cut the flow around 'I' (labeled Flow 3) but still enable a max flow of 2 for the flow from S to I (Flow 1) and from I to T (Flow 2). Note that this framework does not minimize the number of obstacles.
+The algorithm fins a set static obstacles to cut the flow around 'I' (labeled Flow 3 - there is no flow from cell S to cell T) but still enable a max flow of 2 for the flow from S to I (Flow 1) and from I to T (Flow 2). Note that this framework does not minimize the number of obstacles.
 <p align="center">
   <img src="road_network/animations/road_network_colors.png">
 </p>
