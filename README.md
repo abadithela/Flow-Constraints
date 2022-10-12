@@ -6,7 +6,7 @@ Apurva Badithela, Josefine B. Graebener,  Wyatt Ubellacker <br />
 ## Description
 A module to generate constrained test environments that leverage flow algorithms.
 
-This branch contains code for reproducing the results in "synthesizing Reactive Test Environments for Autonomous Systems: Testing Reach-Avoid specifications using Multi-Commodity Flows" by Apurva Badithela\*, Josefine B. Graebener\*, Wyatt Ubellacker, Eric V. Mazumdar, Aaron D. Ames and Richard M. Murray submitted to ICRA 2023.
+This branch contains code for reproducing the results in "Synthesizing Reactive Test Environments for Autonomous Systems: Testing Reach-Avoid Specifications using Multi-Commodity Flows" by Apurva Badithela\*, Josefine B. Graebener\*, Wyatt Ubellacker, Eric V. Mazumdar, Aaron D. Ames and Richard M. Murray submitted to ICRA 2023.
 
 ## Requirements
 Python 3.x<br />
@@ -37,8 +37,8 @@ We also implemented the flow-cut algorithm on simpler grid world examples, such 
 </p>
 
 ### Road Network
-This road network is another example of placing static obstacles using the flow-cut algorithm. The grid world in this case is a road network with two lanes and intersection. The initial position of the car is marked 'S', the intermediate state is 'I' and the goal state is 'T'.
-The algorithm fins a set static obstacles to cut the flow around 'I' (labeled Flow 3 - there is no flow from cell S to cell T) but still enable a max flow of 2 for the flow from S to I (Flow 1) and from I to T (Flow 2). Note that this framework does not minimize the number of obstacles.
+This road network is another example of placing static obstacles using the flow-cut algorithm. The grid world in this case is a road network with two lanes and intersections. The initial position of the car is marked 'S', the intermediate cell is 'I' and the goal cell is 'T'.
+The algorithm finds a set of static obstacles to cut the flow around 'I' (labeled Flow 3 - there is no flow from cell S to cell T) but still enable a max flow of 2 for the flow from S to I (Flow 1) and from I to T (Flow 2). Note that this framework does not minimize the number of obstacles.
 <p align="center">
   <img src="road_network/animations/road_network_colors.png">
 </p>
