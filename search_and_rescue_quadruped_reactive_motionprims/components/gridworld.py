@@ -7,7 +7,7 @@ from helpers.helper import load_opt_from_pkl_file
 import _pickle as pickle
 from components.quadruped_interface import quadruped_move
 
-def load_optimization_results():
+def load_optimization_results(network):
     # read pickle file - if not there save a new one
     try:
         print('Checking for the optimization results')
@@ -16,7 +16,7 @@ def load_optimization_results():
     except:
         print('Result file not found, running optimization')
         # st()
-        G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr = find_cuts()
+        G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr = find_cuts(network)
         opt_dict = {'G': G, 'node_dict': node_dict, 'inv_node_dict':inv_node_dict, 'init': init, 'cuts': cuts, \
         'snr_to_nr':snr_to_nr, 'snr_to_label': snr_to_label, 'label_to_snr':label_to_snr}
         with open('stored_optimization_result.p', 'wb') as pckl_file:
@@ -32,7 +32,8 @@ class GridWorld:
         self.timestep = 0
         self.trace = []
         self.replanned = False
-        self.G, self.node_dict, self.inv_node_dict, self.Ginit, self.cuts, self.snr_to_nr, self.snr_to_label, self.label_to_snr = load_optimization_results()
+
+        self.G, self.node_dict, self.inv_node_dict, self.Ginit, self.cuts, self.snr_to_nr, self.snr_to_label, self.label_to_snr = load_optimization_results(maze)
         self.agent_in_state_x = self.Ginit[0]
         self.print_gridworld()
         # st()
@@ -65,6 +66,9 @@ class GridWorld:
                 self.agent_in_state_x = node
         if x_old != self.agent.s:
             self.replanned = False
+
+        print('--- Agent in state {0}: {1}'.format(self.agent_in_state_x,self.node_dict[self.agent_in_state_x]))
+        # st()
         quadruped_move(self.agent.s)
 
 
@@ -75,7 +79,7 @@ class GridWorld:
                     cut_a = self.snr_to_label[self.node_dict[cut[0]][0]]
                     cut_b = self.snr_to_label[self.node_dict[cut[1]][0]]
                     self.drop_obstacle((cut_a,cut_b))
-                    print('Obstacle placed in location {}!'.format((cut_a,cut_b)))
+                    print('Door locked in location {}!'.format((cut_a,cut_b)))
                     self.agent.controller = self.agent.find_controller(self.maze, self.agent.s)
                     self.agent.state = 0
                     self.replanned = True

@@ -7,7 +7,7 @@ from helpers.helper import load_opt_from_pkl_file
 import _pickle as pickle
 from components.quadruped_interface import quadruped_move
 
-def load_optimization_results():
+def load_optimization_results(network):
     # read pickle file - if not there save a new one
     try:
         print('Checking for the optimization results')
@@ -16,7 +16,7 @@ def load_optimization_results():
     except:
         print('Result file not found, running optimization')
         # st()
-        G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr = find_cuts()
+        G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr = find_cuts(network)
         opt_dict = {'G': G, 'node_dict': node_dict, 'inv_node_dict':inv_node_dict, 'init': init, 'cuts': cuts, \
         'snr_to_nr':snr_to_nr, 'snr_to_label': snr_to_label, 'label_to_snr':label_to_snr}
         with open('stored_optimization_result.p', 'wb') as pckl_file:
@@ -32,7 +32,7 @@ class GridWorld:
         self.timestep = 0
         self.trace = []
         self.replanned = False
-        self.G, self.node_dict, self.inv_node_dict, self.Ginit, self.cuts, self.snr_to_nr, self.snr_to_label, self.label_to_snr = load_optimization_results()
+        self.G, self.node_dict, self.inv_node_dict, self.Ginit, self.cuts, self.snr_to_nr, self.snr_to_label, self.label_to_snr = load_optimization_results(maze)
         self.agent_in_state_x = self.Ginit[0]
         self.print_gridworld()
         # st()
@@ -57,18 +57,34 @@ class GridWorld:
 
     def agent_take_step(self):
         x_old = self.agent.s
-        self.agent.agent_move()
-        # st()
+        if x_old == 'int_goal':
+            self.agent.s = 'p2'
+            st()
+            print('Agent moving to {}'.format(self.agent.s))
+        else:
+            self.agent.agent_move()
+            # st()
         succs = self.G[self.agent_in_state_x]
         for node in succs:
             if self.node_dict[node][0] == 's'+str(self.maze.inv_map[self.agent.s]):
                 self.agent_in_state_x = node
         if x_old != self.agent.s:
             self.replanned = False
-        quadruped_move(self.agent.s)
+        print('Agent in state {}'.format(self.agent_in_state_x))
+        if self.agent.s == 'p1':
+            quadruped_move('s1')
+        elif self.agent.s == 'p2':
+            quadruped_move('s2')
+        elif self.agent.s == 'p3':
+            quadruped_move('s3')
+        else:
+            quadruped_move(self.agent.s)
 
 
     def test_strategy(self):
+        if self.agent_in_state_x == self.cuts[0][0] or self.agent_in_state_x == self.cuts[1][0]:
+            # st()
+            pass
         if not self.replanned:
             for cut in self.cuts:
                 if self.agent_in_state_x == cut[0]:

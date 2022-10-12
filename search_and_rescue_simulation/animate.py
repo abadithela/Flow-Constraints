@@ -43,12 +43,14 @@ def draw_maze(orig_maze, merge = False):
 
 
 def draw_cuts(maze):
-    wedges = []
+    rectangles = []
     for cut in maze.cuts:
-        cut_loc = maze.mapping[cut]
-        wedge = patches.Wedge(((cut_loc[1]+0.5)*TILESIZE,(cut_loc[0]+1)*TILESIZE),TILESIZE/2-5,0, 180, facecolor = 'black', alpha = 0.8)
-        wedges.append(wedge)
-    ax.add_collection(PatchCollection(wedges, match_original=True))
+        # st()
+        cut_loc = maze.mapping[cut[0]]
+        # wedge = patches.Wedge(((cut_loc[1]+0.5)*TILESIZE,(cut_loc[0]+1)*TILESIZE),8,0, 180, facecolor = 'black', alpha = 0.8)
+        rectangle = patches.Rectangle(((cut_loc[1])*TILESIZE,(cut_loc[0]+1)*TILESIZE-2),TILESIZE,5,linewidth=1,edgecolor='black',facecolor='black')
+        rectangles.append(rectangle)
+    ax.add_collection(PatchCollection(rectangles, match_original=True))
 
 
 def draw_timestamp(t, merge = False):
@@ -97,6 +99,13 @@ def animate_images(output_dir):
             save_all=True,
             duration=200, loop=3)
 
+
+    # Build GIF
+    # with imageio.get_writer(output_dir +'mygif.gif', mode='I') as writer:
+    #     for frame in frames:
+    #         # image = imageio.imread(filename)
+    #         writer.append_data(frame)
+
 def traces_to_animation(filename, output_dir):
     # extract out traces from pickle file
     with open(filename, 'rb') as pckl_file:
@@ -117,7 +126,7 @@ def traces_to_animation(filename, output_dir):
     for t in t_array:
         plt.gca().cla()
         draw_maze(traces[t].maze)
-        draw_cuts(maze)
+        draw_cuts(traces[t].maze)
         robot_data = traces[t].agent
         theta_d = 180
         draw_robot(robot_data, traces[t].maze, theta_d)
@@ -149,8 +158,6 @@ def angle(traces, t):
             angle = dir_dict[map[(traces[t-2].car[0][2],traces[t-2].car[0][1])]]
 
     return angle
-
-
 
 
 def make_animation():

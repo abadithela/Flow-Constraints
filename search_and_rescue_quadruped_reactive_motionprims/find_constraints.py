@@ -8,13 +8,14 @@ import matplotlib.pyplot as plt
 from tulip.transys.automata import BuchiAutomaton
 from tulip.transys import transys
 from solve_pyomo_bilevel import solve_bilevel
+from components.network import CustomGrid
 
 # def setup_virtual_game_graph():
 #     virtual_ba, virtual_ts, virtual_ts_acc, maze, state_map = create_virtual_game_graph()
 #     return virtual_ba, virtual_ts_acc, maze, state_map
 
-def setup_automata():
-    ts, prod_ba, virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = create_ts_automata_and_virtual_game_graph()
+def setup_automata(network):
+    ts, prod_ba, virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = create_ts_automata_and_virtual_game_graph(network)
     return virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr
 
 def setup_nodes_and_edges(virtual_ba):
@@ -63,16 +64,39 @@ def get_graph(nodes, edges):
     return G
 
 
-def find_cuts():
-    virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = setup_automata()
+def find_cuts(network):
+    # states = ['init', 'p1', 'p2', 'p3', 'jump1', 'lie2', 'stand3', 'd1', 'd2', 'd3', 'goal']
+    # transitions = [('init', 'p1'), ('init', 'p2'), ('init', 'p3'), ('p1', 'jump1'), ('p2', 'lie2'), \
+    # ('p3', 'stand3'), ('jump1', 'd1'),('lie2', 'd2'), ('stand3', 'd3'), \
+    # ('d2', 'p1'), ('d3', 'p2'), ('d1', 'p2'), ('d2', 'p3'), \
+    # ('p2', 'p1'), ('p3', 'p2'), ('p1', 'p2'), ('p2', 'p3'), \
+    # ('d1', 'goal'), ('d2', 'goal'), ('d3', 'goal')]
+    # network = CustomGrid(states, transitions)
+
+    virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = setup_automata(network)
 
     nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init = setup_nodes_and_edges(virtual)
+    cuts = []
+    # while len(cuts) != 7:
     cuts, flow = call_pyomo(nodes, edges, init, acc_test, acc_sys)
+
     G = get_graph(nodes, edges) # virtual game graph in networkx graph form
-    # st()
+    st()
     return G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr
 
 
 
 if __name__ == '__main__':
-    find_cuts()
+    states = ['init', 'p1', 'p2', 'p3', 'jump1', 'stand1', 'stand2', 'stand3', 'lie3',\
+    'd1_j', 'd1_s', 'd2_s', 'd3_s', 'd3_l', 'goal']
+    transitions = [('init', 'p1'), ('init', 'p2'), ('init', 'p3'), \
+    ('p1', 'jump1'), ('p1', 'stand1'), ('p2', 'stand2'), ('p3', 'stand3'), ('p3', 'lie3'), \
+    ('jump1', 'd1_j'),('stand1', 'd1_s'), ('stand2', 'd2_s'), ('stand3', 'd3_s'), ('lie3', 'd3_l'), \
+    ('d1_s', 'p1'), ('d1_j', 'p1'),\
+    ('d2_s', 'p2'), \
+    ('d3_s', 'p3'), ('d3_l', 'p3'),\
+    ('p2', 'p1'), ('p3', 'p2'), ('p1', 'p2'), ('p2', 'p3'), \
+    ('d1_s', 'goal'), ('d1_j', 'goal'), ('d2_s', 'goal'), ('d3_s', 'goal'),  ('d3_l', 'goal')]
+    network = CustomGrid(states, transitions)
+    
+    find_cuts(network)

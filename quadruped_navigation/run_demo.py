@@ -16,8 +16,13 @@ from helpers.helper import *
 
 
 def new_World():
-    states = ['init', 'd1', 'd2', 'd3', 'goal']
-    transitions = [('init', 'd1'), ('init', 'd2'), ('init', 'd3'), ('d1', 'd2'), ('d2', 'd3'), ('d2', 'd1'), ('d3', 'd2'), ('d1', 'goal'), ('d2', 'goal'), ('d3', 'goal')]
+    states = ['init', 'd1', 'd2', 'int_goal', 'p1', 'p2', 'goal']
+    transitions = [('init', 'd1'), ('init', 'd2'), \
+    ('d1', 'd2'), ('d2', 'd1'), \
+    ('p1', 'p2'), ('p2', 'p1'), \
+    ('d1', 'int_goal'), ('d2', 'int_goal'),\
+    ('int_goal', 'p1'), ('int_goal', 'p2'),
+    ('p1', 'goal'), ('p2', 'goal'),]
     network = CustomGrid(states, transitions)
     # st()
     sys = Agent('sys','init',['goal'], network)

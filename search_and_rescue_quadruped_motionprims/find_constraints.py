@@ -2,16 +2,21 @@ import sys
 sys.path.append('..')
 import numpy as np
 from ipdb import set_trace as st
-from automata_construction import create_virtual_game_graph
+from automata_construction import create_ts_automata_and_virtual_game_graph
 import networkx as nx
 import matplotlib.pyplot as plt
 from tulip.transys.automata import BuchiAutomaton
 from tulip.transys import transys
 from solve_pyomo_bilevel import solve_bilevel
+from components.network import CustomGrid
 
-def setup_virtual_game_graph():
-    virtual_ba, virtual_ts_acc, maze, state_map = create_virtual_game_graph()
-    return virtual_ba, maze, state_map
+# def setup_virtual_game_graph():
+#     virtual_ba, virtual_ts, virtual_ts_acc, maze, state_map = create_virtual_game_graph()
+#     return virtual_ba, virtual_ts_acc, maze, state_map
+
+def setup_automata(network):
+    ts, prod_ba, virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = create_ts_automata_and_virtual_game_graph(network)
+    return virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr
 
 def setup_nodes_and_edges(virtual_ba):
     # setup nodes and map
@@ -52,23 +57,32 @@ def call_pyomo(nodes,edges, init, intermed, goal):
     print('The max flow through I is {}'.format(F))
     return cuts, flow
 
-def get_game_graph_and_cuts(cuts, nodes, edges, node_dict, inv_node_dict, state_map, init):
+def get_graph(nodes, edges):
     G = nx.DiGraph()
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
-    # add the missing edges - FIX WHY MISSING???
-    G.add_edge(*(inv_node_dict[('s1', ('T1_S3_test', 'T0_init_sys'))],inv_node_dict[('s2', ('T1_S3_test', 'T0_init_sys'))]))
-    G.add_edge(*(inv_node_dict[('s7', ('T1_S2_test', 'T0_init_sys'))],inv_node_dict[('s6', ('T1_S2_test', 'T0_init_sys'))]))
-    return G, state_map, node_dict, inv_node_dict, cuts
+    return G
 
 
 def find_cuts():
-    virtual_ba, maze, state_map = setup_virtual_game_graph()
-    nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init = setup_nodes_and_edges(virtual_ba)
+    states = ['init', 'p1', 'p2', 'p3', 'jump1', 'lie2', 'stand3', 'd1', 'd2', 'd3', 'goal']
+    transitions = [('init', 'p1'), ('init', 'p2'), ('init', 'p3'), ('p1', 'jump1'), ('p2', 'lie2'), \
+    ('p3', 'stand3'), ('jump1', 'd1'),('lie2', 'd2'), ('stand3', 'd3'), \
+    ('d2', 'p1'), ('d3', 'p2'), ('d1', 'p2'), ('d2', 'p3'), \
+    ('p2', 'p1'), ('p3', 'p2'), ('p1', 'p2'), ('p2', 'p3'), \
+    ('d1', 'goal'), ('d2', 'goal'), ('d3', 'goal')]
+    network = CustomGrid(states, transitions)
+
+    virtual, sys_virtual, snr_to_nr, snr_to_label, label_to_snr = setup_automata(network)
+
+    nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init = setup_nodes_and_edges(virtual)
+    cuts = []
+    # while len(cuts) != 7:
     cuts, flow = call_pyomo(nodes, edges, init, acc_test, acc_sys)
-    G, state_map, node_dict, inv_node_dict, cuts = get_game_graph_and_cuts(cuts, nodes, edges, node_dict, inv_node_dict, state_map, init)
+
+    G = get_graph(nodes, edges) # virtual game graph in networkx graph form
     st()
-    return G, state_map, node_dict, inv_node_dict, init, cuts
+    return G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr
 
 
 
