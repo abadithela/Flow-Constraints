@@ -157,7 +157,6 @@ def setup_transition_systems(network): # for 3 door example
     ts.atomic_propositions.add('(goal)')
     ts.atomic_propositions.add('(door1)')
     ts.atomic_propositions.add('(door2)')
-    # ts.atomic_propositions.add('(door3)')
 
     ts_sys.states.add_from(ts_states) # Add states
     ts_sys.states.initial.add(ts_states[init_idx[0]])
@@ -174,14 +173,10 @@ def setup_transition_systems(network): # for 3 door example
             ts.states.add(si, ap={'(door1)'})
         elif si == 's2':
             ts.states.add(si, ap={'(door2)'})
-        # elif si == 's3':
-            # ts.states.add(si, ap={'(door3)'})
         elif si == 's4':
             ts.states.add(si, ap={'(door1)'})
         elif si == 's5':
             ts.states.add(si, ap={'(door2)'})
-        # elif si == 's7':
-            # ts.states.add(si, ap={'(door3)'})
         for successor_snr in succs_in_snr:
             ts.transitions.add(si, successor_snr)#, sys_actions=act)
             ts_sys.transitions.add(si, successor_snr)
@@ -220,16 +215,7 @@ def create_ts_automata_and_virtual_game_graph(network):
     # Find the product Buchi Automaton for the system and tester specs
     test_ba = get_tester_BA()
     sys_ba = get_system_BA()
-    # Frind transition system
-    # states = ['init', 'd1', 'd2', 'int_goal', 'p1', 'p2', 'goal']
-    # transitions = [('init', 'd1'), ('init', 'd2'), \
-    # ('d1', 'd2'), ('d2', 'd1'), \
-    # ('p1', 'p2'), ('p2', 'p1'), \
-    # ('d1', 'int_goal'), ('d2', 'int_goal'),\
-    # ('int_goal', 'p1'), ('int_goal', 'p2'),
-    # ('p1', 'goal'), ('p2', 'goal'),]
-    # network = CustomGrid(states, transitions)
-
+    # Find transition system
     ts, ts_sys, snr_to_nr, snr_to_label, label_to_snr = setup_transition_systems(network)
     # asynchronous product
     prod_ba = async_product_BAs(test_ba, sys_ba)

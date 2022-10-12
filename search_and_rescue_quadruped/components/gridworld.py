@@ -15,7 +15,7 @@ def load_optimization_results():
         print('Optimization results loaded successfully')
     except:
         print('Result file not found, running optimization')
-        st()
+        # st()
         G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr = find_cuts()
         opt_dict = {'G': G, 'node_dict': node_dict, 'inv_node_dict':inv_node_dict, 'init': init, 'cuts': cuts, \
         'snr_to_nr':snr_to_nr, 'snr_to_label': snr_to_label, 'label_to_snr':label_to_snr}
@@ -32,7 +32,6 @@ class GridWorld:
         self.timestep = 0
         self.trace = []
         self.replanned = False
-
         self.G, self.node_dict, self.inv_node_dict, self.Ginit, self.cuts, self.snr_to_nr, self.snr_to_label, self.label_to_snr = load_optimization_results()
         self.agent_in_state_x = self.Ginit[0]
         self.print_gridworld()
