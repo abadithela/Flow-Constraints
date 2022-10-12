@@ -11,9 +11,10 @@ class GridWorld:
         self.timestep = 0
         self.trace = []
         self.replanned = False
-        # self.G, self.state_map, self.node_dict, self.inv_node_dict, self.init, self.cuts = find_cuts()
-        self.agent_in_state_x = self.agent.init
+        self.G, self.node_dict, self.inv_node_dict, self.Ginit, self.cuts, self.snr_to_nr, self.snr_to_label, self.label_to_snr = find_cuts()
+        self.agent_in_state_x = self.Ginit[0]
         self.print_gridworld()
+        # st()
 
     def print_gridworld(self):
         key_y_old = []
@@ -34,32 +35,27 @@ class GridWorld:
             print(printline)
 
     def agent_take_step(self):
-        # st()
-        # succ = self.G[self.agent_in_state_x]
+        x_old = self.agent.s
         self.agent.agent_move()
-        # for node in succ:
-        #     if self.state_map[self.node_dict[node][0]] == (self.agent.y,self.agent.x):
-        #         self.agent_in_state_x = node
         # st()
-        # if (self.agent.y,self.agent.x) == self.maze.key1:
-        #     self.maze.goal1_unlocked = True
-        # elif (self.agent.y,self.agent.x) == self.maze.key2:
-        #     self.maze.goal2_unlocked = True
-        # if (self.agent.y,self.agent.x + 1) in self.maze.map:
-        #     if self.maze.map[(self.agent.y,self.agent.x + 1)] != '*' and self.maze.map[(self.agent.y,self.agent.x + 1)] != 'o':
-        #         self.agent.step_e()
-        #     else:
-        #         self.agent.step_n()
-        # else:
-        #     self.agent.step_n()
+        succs = self.G[self.agent_in_state_x]
+        for node in succs:
+            if self.node_dict[node][0] == 's'+str(self.maze.inv_map[self.agent.s]):
+                self.agent_in_state_x = node
+        if x_old != self.agent.s:
+            self.replanned = False
+        # st()
+
 
     def test_strategy(self):
         if not self.replanned:
             for cut in self.cuts:
                 if self.agent_in_state_x == cut[0]:
-                    self.drop_obstacle(self.state_map[self.node_dict[cut[1]][0]])
+                    cut_a = self.snr_to_label[self.node_dict[cut[0]][0]]
+                    cut_b = self.snr_to_label[self.node_dict[cut[1]][0]]
+                    self.drop_obstacle((cut_a,cut_b))
                     print('Obstacle placed!')
-                    self.agent.controller = self.agent.find_controller(self.maze)
+                    self.agent.controller = self.agent.find_controller(self.maze, self.agent.s)
                     self.agent.state = 0
                     self.replanned = True
 
@@ -82,14 +78,12 @@ class GridWorld:
             #     self.lift_obstacles()
 
 
-
-    def drop_obstacle(self, loc):
-        self.lift_obstacles()
-        self.maze.map[loc] = '*'
-        self.maze.gamegraph, self.maze.states, self.maze.next_state_dict = self.maze.get_gamegraph()
+    def drop_obstacle(self, cut):
+        # self.lift_obstacles()
+        self.maze.add_cut(cut)
 
     def lift_obstacles(self):
-        self.maze = deepcopy(self.orig_maze)
+        self.maze.remove_all_cuts()
 
     def is_terminal(self):
         terminal = False

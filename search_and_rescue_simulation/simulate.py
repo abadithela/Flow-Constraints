@@ -32,7 +32,7 @@ def run_sim(max_timestep, filepath):
     for t in range(1,max_timestep):
         print('Timestep {}'.format(t))
         gridworld.agent_take_step()
-        # gridworld.test_strategy()
+        gridworld.test_strategy()
         gridworld.print_gridworld()
         # save the trace
         trace = save_scene(gridworld,trace)

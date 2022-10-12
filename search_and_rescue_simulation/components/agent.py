@@ -11,11 +11,11 @@ class Agent:
         self.init = init
         self.goals = goals
         self.index = 0
-        self.controller = self.find_controller(network)
+        self.controller = self.find_controller(network, self.init)
         self.s = init
         self.network = network
 
-    def find_controller(self,maze):
+    def find_controller(self,maze, init):
         logging.basicConfig(level=logging.WARNING)
         logging.getLogger('tulip.spec.lexyacc').setLevel(logging.WARNING)
         logging.getLogger('tulip.synth').setLevel(logging.WARNING)
@@ -23,7 +23,7 @@ class Agent:
 
         sys_vars = {}
         sys_vars['s'] = (0, len(maze.states))
-        sys_init = {'s = '+str(maze.inv_map[self.init])}
+        sys_init = {'s = '+str(maze.inv_map[init])}
         sys_prog = set()
         goalstr = '(s = '+str(maze.inv_map[self.goals[0]])+')'
         for goal in self.goals[1:]:

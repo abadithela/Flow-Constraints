@@ -26,11 +26,12 @@ class CustomGrid: # For robot navigation example
     def __init__(self, states, transitions):
         self.states = states
         self.transitions = transitions
+        self.original_transitions = transitions
         self.map , self.inv_map= self.make_state_map()
         self.next_state_dict = self.make_next_state_dict()
         self.mapping = {'init': (0,1), 'd1': (1,0), 'd2': (1,1), 'd3': (1,2), 'goal': (2,1)} # to be modified for actual hardware implementation
         self.gamegraph = None
-        self.cuts = [('d1')]
+        self.cuts = []
 
     def make_state_map(self):
         map = {}
@@ -41,6 +42,7 @@ class CustomGrid: # For robot navigation example
         return map, inv_map
 
     def make_next_state_dict(self):
+        # st()
         next_state_dict = {}
         for state in self.states:
             next_states = [state]
@@ -59,6 +61,20 @@ class CustomGrid: # For robot navigation example
                 next_steps_string += '|| ('+state_str+' = '+str(self.inv_map[item])+')'
             dynamics_spec |= {'('+state_str+' = '+str(state_nr)+') -> X('+ next_steps_string +')'}
         return dynamics_spec
+
+    def add_cut(self,cut):
+        # st()
+        self.cuts.append(cut)
+        if cut in self.transitions:
+            self.transitions.remove(cut)
+        self.next_state_dict = self.make_next_state_dict()
+
+    def remove_all_cuts(self):
+        self.cuts = []
+        self.transitions = self.original_transitions
+        self.make_next_state_dict()
+
+
 
 
 class Network:

@@ -69,8 +69,8 @@ def find_cuts():
     nodes, edges, node_dict, inv_node_dict, acc_sys, acc_test, init = setup_nodes_and_edges(virtual)
     cuts, flow = call_pyomo(nodes, edges, init, acc_test, acc_sys)
     G = get_graph(nodes, edges) # virtual game graph in networkx graph form
-    st()
-    return G, node_dict, inv_node_dict, init, cuts
+    # st()
+    return G, node_dict, inv_node_dict, init, cuts, snr_to_nr, snr_to_label, label_to_snr
 
 
 
