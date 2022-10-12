@@ -22,7 +22,11 @@ Packages: see **requirements.txt** and TuLiP <br />
 ## Examples
 ### Corridor Example
 This is the running example in the paper, the robot (system under test) starts in the center of the corridor and wants to reach either of the yellow goal cells at either end of the corridor. The tester wants the system to pass through both of the blue cells first, which is encoded in the tester specification. In the resulting test execution the tester places an obstacle to force the robot to pass through both blue cells before it can reach a yellow goal cell.
-![](corridor_example/animations/test_strategy_cropped.gif)
+
+<p align="center">
+  <img src="corridor_example/animations/test_strategy_cropped.gif">
+</p>
+
 ### Robot Navigation 3 Door Example
 This example is inspired by a search and rescue mission, the robot starts on one side of three doors (blue cells) and need to reach the goal state on the other side (yellow cell). The tester wants the robot to try all three doors before it is allowed to pass through to its goal state. In the resulting test execution the tester places obstacles ("locks the doors") such that the robot can only reach its goal state after passing through all three blue cells.
 
