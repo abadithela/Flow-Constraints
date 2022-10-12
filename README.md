@@ -23,4 +23,4 @@ Packages: see **requirements.txt** and TuLiP <br />
 ### Corridor Example
 ![](corridor_example/animations/test_strategy_cropped.gif)
 ### Robot Navigation Example
-<img src="search_and_rescue_simulation/animations/test_strategy_cropped.gif" width="100" height="100">
+<img src="search_and_rescue_simulation/animations/test_strategy_cropped.gif" width="350" height="350" align="center">
