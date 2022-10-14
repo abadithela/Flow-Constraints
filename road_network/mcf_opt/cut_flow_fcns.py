@@ -73,7 +73,7 @@ def solve_bilevel(maze):
     # Objective - minimize 1/F + lambda*f_3/F
     def mcf_flow_new(model):
         lam1 = 1
-        lam2 = 1e4
+        lam2 = 0.1
         flow_3 = sum(model.L.f3[i,j] for (i, j) in model.L.edges if i == src)
         return lam1*model.t + lam2*flow_3
 
@@ -259,6 +259,7 @@ def solve_bilevel(maze):
     #     if d_e[key][-1] >= 0.5:
     #         print('Edge {} cut'.format(key))
     print(d_e)
+    print(F)
     st()
     plot_mcf(maze, f1_e, f2_e, f3_e, d_e)
 
@@ -273,9 +274,9 @@ if __name__ == '__main__':
     # source = (5,0)
     # sink = (0,9)
     # intermediate = (2,2)
-    src = (8,5)
-    sink = (1,1)
-    int = (4,5)
+    src = (7,1)
+    sink = (1,7)
+    int = (4,4)
     maze.source = src
     maze.goal = sink
     maze.intermediate = int

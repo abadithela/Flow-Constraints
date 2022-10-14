@@ -17,7 +17,7 @@ from helpers.helper import *
 def new_World():
     networkfile = os.getcwd()+'/road_network.txt'
     network = RoadNetwork(networkfile)
-    sys = Agent('sys',(5,5), (4,0), network)
+    sys = Agent('sys',(8,1), (2,7), network)
     gridworld = GridWorld(network, sys)
     return gridworld, network, sys
 

@@ -37,19 +37,21 @@ def plot_mcf(maze, flow1, flow2, flow3, cuts):
                 if maze.map[j,i]=='*': # racing flag style
                     axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='black', alpha=.5))
                 elif j == interm[0] and i == interm[1] :
-                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='blue', alpha=.2))
+                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='blue', alpha=.3))
                     axis[idx].text(x+tilesize/2-tilesize/5, y+tilesize/2-tilesize/10, 'I')
                 elif maze.map[j,i]=='o': # racing flag style
                     axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='red', alpha=.5))
                 elif maze.map[j,i]=='↓' or maze.map[j,i]=='↑' or maze.map[j,i]=='←' or maze.map[j,i]=='→' or maze.map[j,i]=='+': # racing flag style
-                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='black', alpha=.1))
+                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='lightgray', alpha=.1))
                 elif i % 2 == j % 2: # racing flag style
-                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='gray', alpha=.1))
+                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='lightgray', alpha=.1))
                 if j == maze.source[0] and i == maze.source[1]:
                     # st()
+                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='hotpink', alpha=.3))
                     axis[idx].text(x+tilesize/2-tilesize/5, y+tilesize/2-tilesize/10, 'S')
                 if j == maze.goal[0] and i == maze.goal[1]:
                     # st()
+                    axis[idx].add_patch(Rectangle((x, y), w, h, fill=True, color='#ffb000', alpha=.3))
                     axis[idx].text(x+tilesize/2-tilesize/5, y+tilesize/2-tilesize/10, 'T')
         # grid lines
         for x in xs:
@@ -69,11 +71,12 @@ def plot_mcf(maze, flow1, flow2, flow3, cuts):
                 endxy = cut[1]
                 x_val = (startxy[0]+endxy[0])/2
                 y_val = (startxy[1]+endxy[1])/2
-                if cuts[cut] <= 1.0:
-                    intensity = max(0,cuts[cut])/2
-                else:
-                    intensity = 1.0/2
-                axis[idx].plot([y_val+ tilesize/2, y_val+ tilesize/2], [x_val+ tilesize/2, x_val+ tilesize/2], color='black', alpha=intensity, marker='o')
+                if cuts[cut] >= 0.95:
+                    if cuts[cut] <= 1.0:
+                        intensity = max(0,cuts[cut])/2
+                    else:
+                        intensity = 1.0/2
+                    axis[idx].plot([y_val+ tilesize/2, y_val+ tilesize/2], [x_val+ tilesize/2, x_val+ tilesize/2], color='black', alpha=intensity, marker='o')
 
         else:
             for flow in flows[idx]:
