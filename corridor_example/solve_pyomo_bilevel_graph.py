@@ -137,6 +137,7 @@ def group_cuts(G, B_prod, S):
                 assert (len(sys_ba_de[q][k]) == 1)
             except:
                 pdb.set_trace()
+    pdb.set_trace()
     print("1-1 mapping of edges")
     return map_q_to_de, sys_ba_de
 
