@@ -116,6 +116,7 @@ def max_oracle_gd_proj_mod(T, x0):
         fval.append(fv)
         lag.append(lamt)
         xtraj[t] = projx_mod(xstep, lb, ub)
+        pdb.set_trace()
         if xtraj[t] is not None:
             print("Solved projection")
             print("\n")
@@ -157,7 +158,6 @@ def max_oracle_gd_mod(T, x0):
             print("\n")
         else:
             pdb.set_trace()
-
     yt, lamt, fv = Vin_oracle_mod(xtraj[T-2])
     ytraj[T-2] = yt.copy()
     xstep = xtraj[T-2] - 0.25/t*gradient_mod(xtraj[T-2], ytraj[T-2], lamt)
@@ -179,8 +179,8 @@ def max_oracle_gd(T, x0):
     lag = []
     converged = False
     for t in range(1,T-1):
-        print("----------------------------------")
-        print("Iteration: "+str(t))
+        # print("----------------------------------")
+        # print("Iteration: "+str(t))
         yt, lamt, fv = Vin_oracle_orig(xtraj[t-1])
         print("Solve oracle problem for inner max")
         ytraj[t-1] = yt.copy()
@@ -230,6 +230,6 @@ def plot_strategies(xtraj, ytraj, lag):
 if __name__ == '__main__':
     x,y = init_vars()
     x0 = -0.5
-    T = 500
+    T = 2500
     xtraj, ytraj, fval, lag = max_oracle_gd(T, x0)
     plot_strategies(xtraj, ytraj, lag)

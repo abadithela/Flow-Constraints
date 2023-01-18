@@ -300,6 +300,7 @@ def max_oracle_pyomo_dep(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, b
         else:
             xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
         if t in [1, 1000, 2000]:
+            print("Iteration number: ", str(t))
             ytraj_t = np.zeros((len(yt), 1))
             for k, yk in yt.items():
                 kedge = find_edge_key(edges_keys, k)

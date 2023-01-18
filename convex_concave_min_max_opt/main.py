@@ -103,7 +103,7 @@ def solve_opt_pyomo(maze, src, sink, int):
 
 if __name__ == '__main__':
     # test
-    grid = "toy"
+    grid = "med"
     main_dir = os.getcwd()
     par_dir = os.path.dirname(main_dir)
     if grid == "large":
@@ -126,11 +126,18 @@ if __name__ == '__main__':
         sink = (0,2)
         int = (2,1)
         maze = MazeNetwork(mazefile)
+    elif grid == "med":
+        mazefile = par_dir + '/constrained_mcf/med_mazefile.txt'
+        src = (0,0)
+        sink = (2,2)
+        int = (1,2)
+        maze = MazeNetwork(mazefile)
+        #pdb.set_trace()
 
     reg = 10
     f1_e_hist, f2_e_hist, f3_e_hist, d_e_hist, F_hist = solve_opt_pyomo(maze, src, sink, int)
 
-    if grid == "toy":
+    if grid == "toy" or "med":
         maze_plot_mcf(maze, f1_e_hist[-1], f2_e_hist[-1], f3_e_hist[-1], d_e_hist[-1])
         # for t in range(len(F_hist)):
         #     print("Max flow: " + str(F_hist[t]))
