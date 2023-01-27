@@ -120,7 +120,7 @@ def check_constraint(xt, yt, A, b):
     #     pdb.set_trace()
 
 
-def plot_flows(x,y, edges_keys, maze):
+def plot_flows(x,y, edges_keys, maze,fn=None):
     ne = len(edges_keys.keys())
     t = x[3*ne,0]
     print("1/F is: ", str(t))
@@ -138,7 +138,7 @@ def plot_flows(x,y, edges_keys, maze):
         flow2.update({(edge):x[idx2,0]/t})
         flow3.update({(edge):y[idx1,0]/t})
         cuts.update({(edge):x[idx_cuts,0]/t})
-    plot_mcf(maze, flow1, flow2, flow3, cuts)
+    plot_mcf(maze, flow1, flow2, flow3, cuts, fn=fn)
 
 def match_dual_vars(lamt, eq_cons_names, ineq_cons_names):
     # Inequality constraints and then equality constraints:
@@ -278,11 +278,10 @@ def max_oracle_pyomo_v2(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, be
     return xtraj, ytraj
 
 # This is the Pyomo oracle that works!
-def max_oracle_pyomo_dep(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, maze=None):
+def max_oracle_pyomo_dep(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, LAMBDA = 1e4, maze=None):
     '''
     First-order gradient descent optimization with Pyomo being the oracle for max flow. Only Lagrangian for the inequality constraints of the inner player are taken into account. All of the constraints of the outer player are taken care of in the projection set.
     '''
-    LAMBDA = 1e4
     fval = []
     proj = "not_des"
     ne = len(list(edges_keys.keys()))
@@ -299,22 +298,30 @@ def max_oracle_pyomo_dep(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, b
             xtraj[t] = projx_des(xstep, xtraj[t-1], ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
         else:
             xtraj[t] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
-        if t in [1, 1000, 2000]:
-            print("Iteration number: ", str(t))
-            ytraj_t = np.zeros((len(yt), 1))
-            for k, yk in yt.items():
-                kedge = find_edge_key(edges_keys, k)
-                ytraj_t[kedge,0] = yk
-            plot_flows(xtraj[t-1], ytraj_t, edges_keys, maze)
-            pdb.set_trace()
+        # if t in [2000]:
+        #     print("Iteration number: ", str(t))
+        #     ytraj_t = np.zeros((len(yt), 1))
+        #     for k, yk in yt.items():
+        #         kedge = find_edge_key(edges_keys, k)
+        #         ytraj_t[kedge,0] = yk
+        #     plot_flows(xtraj[t-1], ytraj_t, edges_keys, maze)
 
-    yt, lam_t, fv = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[t],LAMBDA)
-    ytraj[t] = yt.copy()
-    print("Found a suitable lambda!")
+    yt, lam_t, fv = Vin_oracle(edges_keys, nodes_keys, src, sink, int, xtraj[T-2],LAMBDA)
+    ytraj[T-2] = yt.copy()
+    ytraj_t = np.zeros((len(yt), 1))
+    for k, yk in yt.items():
+        kedge = find_edge_key(edges_keys, k)
+        ytraj_t[kedge,0] = yk
+    print("Flows for lambda, ",str(LAMBDA))
+    fn = "debugging_imgs/zero_cuts_lambda_"+str(LAMBDA)+".png"
+    try:
+        plot_flows(xtraj[T-2], ytraj_t, edges_keys, maze, fn=fn)
+    except:
+        print("Couldn't plot for lambda", str(LAMBDA))
     return xtraj, ytraj
 
 # This is the Pyomo oracle that works!
-def max_oracle_pyomo_v4(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, maze=None):
+def pyomo_v4(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, beq_proj, Aineq_proj, bineq_proj, eq_cons_names, ineq_cons_names, edges_keys,nodes_keys, src, sink, int, maze=None):
     '''
     First-order gradient descent optimization with Pyomo being the oracle for max flow. The Lagrangian for the inequality constraints of the inner player are taken into account. Then, the Lagrangian of the outer player is computed by keeping the inner player fixed.
     '''
@@ -359,7 +366,7 @@ def max_oracle_pyomo_v4(T, x0, eta, c1, c2, Aeq, beq, Aineq, bineq, Aeq_proj, be
     # xstep = xtraj[T-2] - eta*gradient(xtraj[T-2], ytraj[T-2], dual_vars, c1, c2, Aineq, bineq, Aeq, beq)
     # xstep = xtraj[T-2] - eta*np.random.random()*np.ones(xtraj[T-2].shape)
     # xtraj[T-1] = projx(xstep, ne, Aineq_proj, bineq_proj, Aeq_proj, beq_proj)
-    print("Found a suitable lambda!")
+    print("Found a suitable lambda !")
     return xtraj, ytraj
 
 # Gradient descent:

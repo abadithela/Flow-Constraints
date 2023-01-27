@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import pdb
 
-def plot_mcf(maze, flow1, flow2, flow3, cuts):
+def plot_mcf(maze, flow1, flow2, flow3, cuts, fn=None):
     tilesize = 1
     xs = np.linspace(0, maze.len_y*tilesize, maze.len_y+1)
     ys = np.linspace(0, maze.len_x*tilesize, maze.len_x+1)
@@ -90,7 +90,10 @@ def plot_mcf(maze, flow1, flow2, flow3, cuts):
 
         axis[idx].invert_yaxis()
         axis[idx].set_title(titlestr[idx])
-    plt.show()
+    if fn:
+        plt.savefig(fn)
+    else:
+        plt.show()
 
 def plot_maze(maze):
     tilesize = 1
