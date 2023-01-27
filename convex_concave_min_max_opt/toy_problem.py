@@ -227,9 +227,44 @@ def plot_strategies(xtraj, ytraj, lag):
 
     plt.show()
 
+def plot_value_function():
+    fig1, ax1 = plt.subplots()
+    ax1.set_title("Value function for tester")
+    ax1.set_xlabel("x")
+    ax1.set_ylabel("V(x)")
+    lam =1
+    lam2 = 50
+    x = np.linspace(-1,1,100)
+    y1 = []
+    y2 = []
+    for xi in x:
+        y1.append(lam2*xi**2+1 + lam)
+        y2.append(lam2*xi**2+1 + lam*(1-xi))
+    ax1.plot(x, np.array(y1), 'r')
+    ax1.plot(x, np.array(y2), 'b')
+    plt.show()
+
+def plot_value_function_reg():
+    fig1, ax1 = plt.subplots()
+    ax1.set_title("Value function for tester")
+    ax1.set_xlabel("x")
+    ax1.set_ylabel("V(x)")
+    lam = 0.5
+    x = np.linspace(-1,1,100)
+    y = []
+    for xi in x:
+        if xi < 0:
+            y.append(-2*xi+1 + lam)
+        else:
+            y.append(-2*xi+1 + lam - lam*xi)
+    ax1.plot(x, np.array(y), 'r--')
+    plt.show()
+
 if __name__ == '__main__':
     x,y = init_vars()
     x0 = -0.5
     T = 2500
-    xtraj, ytraj, fval, lag = max_oracle_gd(T, x0)
-    plot_strategies(xtraj, ytraj, lag)
+    # xtraj, ytraj, fval, lag = max_oracle_gd(T, x0)
+    # plot_strategies(xtraj, ytraj, lag)
+    plot_value_function_reg()
+    #plot_value_function_reg(lam)
